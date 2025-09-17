@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
+	"runtime"
 	"runtime/debug"
 	"slices"
 	"storm/internal/reporter"
@@ -24,6 +26,7 @@ func RegisterAndRunTests(suite core.SuiteContext,
 	args []string,
 	watch bool,
 	logDir *string,
+	junitPath *string,
 ) error {
 	// Create a new runnable instance
 	registrantInstance := &runnableInstance{
@@ -45,7 +48,7 @@ func RegisterAndRunTests(suite core.SuiteContext,
 
 	// Actually run the thing
 	err = executeTestCases(suite, registrantInstance, testMgr, watch)
-
+	testMgr.StopTimer()
 	if err != nil {
 		switch err.(type) {
 		case *setupError:
@@ -65,13 +68,32 @@ func RegisterAndRunTests(suite core.SuiteContext,
 
 	rep.PrintReport()
 
+	if junitPath != nil {
+		junitPath := *junitPath
+		junitDir := path.Dir(junitPath)
+		suite.Logger().Infof("Producing JUnit XML output at '%s'", junitPath)
+		err := os.MkdirAll(junitDir, 0755)
+		if err != nil {
+			return fmt.Errorf("failed to create JUnit output directory '%s': %w", junitDir, err)
+		}
+
+		err = rep.ProduceJUnitXML(junitPath)
+		if err != nil {
+			return fmt.Errorf("failed to produce JUnit XML at '%s': %w", junitPath, err)
+		}
+	}
+
 	if logDir != nil {
 		suite.Logger().Infof("Saving logs to '%s'", *logDir)
 		err := os.MkdirAll(*logDir, 0755)
 		if err != nil {
 			return fmt.Errorf("failed to create log directory '%s': %w", *logDir, err)
 		}
-		rep.SaveLogs(*logDir)
+
+		err = rep.SaveLogs(*logDir)
+		if err != nil {
+			return fmt.Errorf("failed to save logs to '%s': %w", *logDir, err)
+		}
 	}
 
 	return rep.ExitError()
@@ -102,35 +124,46 @@ func executeTestCases(suite core.SuiteContext,
 	bail := false
 
 	for _, testCase := range testManager.TestCases() {
-		if !bail {
-			suite.Logger().Infof("%s (started)", testCase.Name())
-
-			// Run the test case.
-			captured, err := captureOutput(func() {
-				executeTestCase(testCase)
-			}, func(w io.Writer, s string) {
-				if suite.AzureDevops() || watch {
-					fmt.Fprintf(w, "  ├ %s\n", s)
-				}
-			})
-
-			// Store the captured output in the test case.
-			testCase.SetCollectedOutput(captured)
-
-			// If we failed to collect the output, return an error. This means
-			// that we didn't even run.
-			if err != nil {
-				return fmt.Errorf("failed to capture output for '%s': %w", testCase.Name(), err)
-			}
-
-			// Grab and store the cleanup functions for this test case.
-			cleanupFuncs = append(cleanupFuncs, testCase.SuiteCleanupList()...)
-
-			// Check if the test case caused a bail condition.
-			bail = testCase.IsBailCondition()
-			suite.Logger().Infof("%s %s", testCase.Name(), testCase.Status().ColorString())
-		} else {
+		if bail {
 			testCase.MarkNotRun("dependency failure")
+			continue
+		}
+
+		suite.Logger().Infof("%s (started)", testCase.Name())
+
+		// Run the test case.
+		var startGoroutines = runtime.NumGoroutine()
+		captured, err := captureOutput(func() {
+			executeTestCase(testCase)
+		}, func(w io.Writer, s string) {
+			if suite.AzureDevops() || watch {
+				fmt.Fprintf(w, "  ├ %s\n", s)
+			}
+		})
+
+		delta := runtime.NumGoroutine() - startGoroutines
+
+		// Store the captured output in the test case.
+		testCase.SetCollectedOutput(captured)
+
+		// If we failed to collect the output, return an error. This means
+		// that we didn't even run.
+		if err != nil {
+			return fmt.Errorf("failed to capture output for '%s': %w", testCase.Name(), err)
+		}
+
+		// Grab and store the cleanup functions for this test case.
+		cleanupFuncs = append(cleanupFuncs, testCase.SuiteCleanupList()...)
+
+		// Check if the test case caused a bail condition.
+		bail = testCase.IsBailCondition()
+
+		// Output the test case status.
+		suite.Logger().Infof("%s %s", testCase.Name(), testCase.Status().ColorString())
+
+		// Print a warning if we suspect the test case has leaked goroutines.
+		if delta > 0 {
+			suite.Logger().Warnf("Test case %s has leaked goroutines: ended with %d more goroutine(s) than expected", testCase.Name(), delta)
 		}
 
 	}
