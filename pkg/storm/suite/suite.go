@@ -26,7 +26,7 @@ type StormSuite struct {
 }
 
 func CreateSuite(name string) StormSuite {
-	name = fmt.Sprintf("github.com/microsoft/storm-%s", name)
+	name = fmt.Sprintf("storm-%s", name)
 	kong_ctx, global := cli.ParseCommandLine(name)
 
 	logger := logrus.New()
