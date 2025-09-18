@@ -1,6 +1,7 @@
 package helloworld
 
 import (
+	"errors"
 	"fmt"
 	"storm"
 	"time"
@@ -97,8 +98,8 @@ func (h *HelloWorldHelper) myFailingTestCase(tc storm.TestCase) error {
 	// and stop execution of the entire test suite.
 	tc.Fail("This test case will fail")
 
-	// You can also use this handy function to fail a test case from an error!
-	// tc.FailFromError()
+	// You can also use this function to fail a test case from an error.
+	tc.FailFromError(errors.New("failing from an error"))
 
 	fmt.Println("This message will never be printed!")
 

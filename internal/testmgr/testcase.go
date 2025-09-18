@@ -131,12 +131,12 @@ func (t *TestCase) Status() TestCaseStatus {
 	return t.status
 }
 
-// Close this test case as passed!
+// Close this test case as passed.
 func (t *TestCase) Pass() {
 	t.close(TestCaseStatusPassed, "", nil)
 }
 
-// Return the suite-level cleanup functions registred in this test case.
+// Return the suite-level cleanup functions registered in this test case.
 func (t *TestCase) SuiteCleanupList() []func() {
 	return t.suiteCleanup
 }

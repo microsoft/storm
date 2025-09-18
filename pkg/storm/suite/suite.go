@@ -70,7 +70,7 @@ func (s *StormSuite) Run() {
 	// Cancel the suite context.
 	s.cancel()
 
-	// This call will end the program!
+	// This call will end the program.
 	s.reportExitStatus(err)
 }
 
