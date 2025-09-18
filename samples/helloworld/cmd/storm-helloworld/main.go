@@ -1,9 +1,9 @@
 package main
 
 import (
-	"storm"
+	"github.com/microsoft/storm"
 
-	"storm/samples/helloworld/testsuite"
+	helloworld "github.com/microsoft/storm/samples/helloworld/testsuite"
 )
 
 func main() {

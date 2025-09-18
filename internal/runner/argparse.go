@@ -2,7 +2,8 @@ package runner
 
 import (
 	"fmt"
-	"storm/pkg/storm/core"
+
+	"github.com/microsoft/storm/pkg/storm/core"
 
 	"github.com/alecthomas/kong"
 )

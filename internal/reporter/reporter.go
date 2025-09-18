@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"storm/internal/devops"
-	"storm/internal/stormerror"
-	"storm/internal/testmgr"
-	"storm/pkg/storm/utils"
 	"strings"
+
+	"github.com/microsoft/storm/internal/devops"
+	"github.com/microsoft/storm/internal/stormerror"
+	"github.com/microsoft/storm/internal/testmgr"
+	"github.com/microsoft/storm/pkg/storm/utils"
 
 	"github.com/fatih/color"
 )

@@ -1,7 +1,7 @@
 package runner
 
 import (
-	"storm/pkg/storm/core"
+	"github.com/microsoft/storm/pkg/storm/core"
 )
 
 type runnableContext struct {

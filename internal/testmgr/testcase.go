@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"runtime"
-	"storm/pkg/storm/core"
 	"sync"
 	"time"
+
+	"github.com/microsoft/storm/pkg/storm/core"
 )
 
 type TestCase struct {
