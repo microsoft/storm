@@ -2,8 +2,9 @@ package reporter
 
 import (
 	"fmt"
-	"storm/internal/testmgr"
 	"strings"
+
+	"github.com/microsoft/storm/internal/testmgr"
 )
 
 type TestSummary struct {

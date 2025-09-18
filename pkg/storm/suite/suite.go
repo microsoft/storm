@@ -6,9 +6,9 @@ import (
 	"os"
 	"slices"
 
-	"storm/internal/cli"
-	"storm/internal/collector"
-	"storm/pkg/storm/core"
+	"github.com/microsoft/storm/internal/cli"
+	"github.com/microsoft/storm/internal/collector"
+	"github.com/microsoft/storm/pkg/storm/core"
 
 	"github.com/alecthomas/kong"
 	"github.com/sirupsen/logrus"
@@ -26,7 +26,7 @@ type StormSuite struct {
 }
 
 func CreateSuite(name string) StormSuite {
-	name = fmt.Sprintf("storm-%s", name)
+	name = fmt.Sprintf("github.com/microsoft/storm-%s", name)
 	kong_ctx, global := cli.ParseCommandLine(name)
 
 	logger := logrus.New()

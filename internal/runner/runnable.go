@@ -1,6 +1,6 @@
 package runner
 
-import "storm/pkg/storm/core"
+import "github.com/microsoft/storm/pkg/storm/core"
 
 type runnableInstance struct {
 	core.Argumented

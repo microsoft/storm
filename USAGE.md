@@ -55,7 +55,7 @@ This is a sample main function:
 package main
 
 import (
-    "storm"
+    "github.com/microsoft/storm"
 )
 
 func main() {
