@@ -15,7 +15,7 @@ type TestCase struct {
 	registrant      core.TestRegistrantMetadata
 	name            string
 	startTime       time.Time
-	endTime         time.Time
+	endTime         *time.Time
 	status          TestCaseStatus
 	reason          string
 	err             error
@@ -56,7 +56,21 @@ func (t *TestCase) close(status TestCaseStatus, reason string, err error) {
 	t.cancel()
 
 	// If the test case is still running, we need to wait for it to finish.
-	t.waitGroup.Wait()
+	// We do this in a goroutine to inject a timeout.
+	successCh := make(chan struct{})
+	go func() {
+		defer close(successCh)
+		t.waitGroup.Wait()
+	}()
+
+	select {
+	case <-successCh:
+		// Wait completed successfully
+	case <-time.After(20 * time.Second):
+		// Timeout after 20 seconds, rewrite closure status to error
+		status = TestCaseStatusError
+		err = fmt.Errorf("background tasks took too long to finish")
+	}
 
 	if !status.IsFinal() {
 		panic("Attempted to close test with non-final status: " + status.String())
@@ -76,7 +90,8 @@ func (t *TestCase) close(status TestCaseStatus, reason string, err error) {
 
 	// Update the status and end time
 	t.status = status
-	t.endTime = time.Now()
+	now := time.Now()
+	t.endTime = &now
 
 	// Set the reason for the test case closure
 	if err != nil {
@@ -182,9 +197,14 @@ func (t *TestCase) Name() string {
 	return t.name
 }
 
-// RunTime implements core.TestCase.
+// RunTime implements core.TestCase. Returns the duration of the test case. If
+// the test case is still running, it returns the duration since the start time.
 func (t *TestCase) RunTime() time.Duration {
-	return t.endTime.Sub(t.startTime)
+	if t.endTime == nil {
+		return time.Since(t.startTime)
+	} else {
+		return t.endTime.Sub(t.startTime)
+	}
 }
 
 // Context implements core.TestCase.
