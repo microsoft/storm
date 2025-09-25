@@ -12,6 +12,7 @@ type StormTestManager struct {
 	registrant core.TestRegistrantMetadata
 	suite      core.SuiteContext
 	startTime  time.Time
+	endTime    time.Time
 	testCases  []*TestCase
 }
 
@@ -47,4 +48,12 @@ func (tm *StormTestManager) Registrant() core.TestRegistrantMetadata {
 
 func (tm *StormTestManager) Suite() core.SuiteContext {
 	return tm.suite
+}
+
+func (tm *StormTestManager) StopTimer() {
+	tm.endTime = time.Now()
+}
+
+func (tm *StormTestManager) Duration() time.Duration {
+	return tm.endTime.Sub(tm.startTime)
 }

@@ -62,7 +62,7 @@ func saveTestCaseLogs(testCase *testmgr.TestCase, path string) error {
 
 	logs := testCase.CollectedOutput()
 	for _, line := range logs {
-		line = strings.TrimSpace(utils.ANSI_CLEANER.ReplaceAllString(line, "")) + "\n"
+		line = strings.TrimSpace(utils.RemoveAllANSI(line)) + "\n"
 		_, err = file.WriteString(line)
 		if err != nil {
 			return fmt.Errorf("failed to write log line for %s: %v", testCase.Name(), err)
