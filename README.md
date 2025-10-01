@@ -1,3 +1,8 @@
+
+<div align="center">
+    <img src="./.github/storm.png" alt="storm logo" width="300"/>
+</div>
+
 # Storm
 
 Storm is a Go-based scenario-driven testing framework that executes complex,
