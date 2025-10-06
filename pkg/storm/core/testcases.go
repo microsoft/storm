@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/microsoft/storm/pkg/storm/artifacts"
 )
 
 type TestCase interface {
@@ -50,4 +52,8 @@ type TestCase interface {
 	// considered complete. This is useful to make sure the next test case does
 	// not start before the previous one has finished all its background work.
 	BackgroundWaitGroup() *sync.WaitGroup
+
+	// Provides an artifact broker that can be used to publish artifacts from
+	// the test case.
+	ArtifactBroker() artifacts.ArtifactBroker
 }

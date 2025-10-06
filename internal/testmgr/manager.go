@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/microsoft/storm/internal/artifacts"
 	"github.com/microsoft/storm/internal/collector"
 	"github.com/microsoft/storm/pkg/storm/core"
 )
@@ -15,10 +16,14 @@ type StormTestManager struct {
 	testCases  []*TestCase
 }
 
-func NewStormTestManager(suite core.SuiteContext, registrant interface {
-	core.TestRegistrant
-	core.TestRegistrantMetadata
-}) (*StormTestManager, error) {
+func NewStormTestManager(
+	suite core.SuiteContext,
+	registrant interface {
+		core.TestRegistrant
+		core.TestRegistrantMetadata
+	},
+	logDir *string,
+) (*StormTestManager, error) {
 	collected, err := collector.CollectTestCases(registrant)
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect test cases: %w", err)
@@ -26,7 +31,8 @@ func NewStormTestManager(suite core.SuiteContext, registrant interface {
 
 	testCases := make([]*TestCase, len(collected))
 	for i, testCase := range collected {
-		testCases[i] = newTestCase(testCase.Name, testCase.F, suite.Context())
+		artifactBroker := artifacts.NewArtifactBroker(suite, logDir)
+		testCases[i] = newTestCase(testCase.Name, testCase.F, suite.Context(), artifactBroker)
 	}
 
 	return &StormTestManager{
