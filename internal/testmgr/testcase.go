@@ -68,7 +68,7 @@ func (t *TestCase) Execute() error {
 // error. This method panics if the status is not a final status, or if the
 // current status is already a final status.
 //
-// This method will is meant to be called at the end of a test case's execution,
+// This method is meant to be called at the end of a test case's execution,
 // or when the test case needs to be closed early (for example, when the test
 // case calls t.Fail or t.Skip).
 //
