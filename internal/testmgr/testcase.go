@@ -203,9 +203,9 @@ func (t *TestCase) Name() string {
 func (t *TestCase) RunTime() time.Duration {
 	if t.endTime == nil {
 		return time.Since(t.startTime)
-	} else {
-		return t.endTime.Sub(t.startTime)
 	}
+	
+	return t.endTime.Sub(t.startTime)
 }
 
 // Context implements core.TestCase.
