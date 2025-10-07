@@ -3,7 +3,8 @@ package suite
 import (
 	"fmt"
 	"os"
-	"storm/internal/devops"
+
+	"github.com/microsoft/storm/internal/devops"
 )
 
 // Exit the program and report the exit status

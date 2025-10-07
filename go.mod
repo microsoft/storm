@@ -1,4 +1,4 @@
-module storm
+module github.com/microsoft/storm
 
 go 1.23.5
 

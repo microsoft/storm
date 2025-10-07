@@ -38,11 +38,6 @@ func printSeparatorWithTitle(title string) {
 }
 
 // Prints a separator line to the console.
-func printSeparator() {
-	fmt.Printf("%s\n", strings.Repeat(SEPARATOR_CHAR, termWidth()))
-}
-
-// Prints a separator line to the console.
 func printSeparatorChar(char string) {
 	fmt.Printf("%s\n", strings.Repeat(char, termWidth()))
 }

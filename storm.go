@@ -1,8 +1,8 @@
 package storm
 
 import (
-	"storm/pkg/storm/core"
-	"storm/pkg/storm/suite"
+	"github.com/microsoft/storm/pkg/storm/core"
+	"github.com/microsoft/storm/pkg/storm/suite"
 )
 
 type Scenario = core.Scenario

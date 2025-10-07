@@ -2,8 +2,9 @@ package runner
 
 import (
 	"fmt"
-	"storm/internal/stormerror"
 	"testing"
+
+	"github.com/microsoft/storm/internal/stormerror"
 )
 
 func TestRunCatchPanic(t *testing.T) {

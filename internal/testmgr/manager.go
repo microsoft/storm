@@ -2,9 +2,10 @@ package testmgr
 
 import (
 	"fmt"
-	"storm/internal/collector"
-	"storm/pkg/storm/core"
 	"time"
+
+	"github.com/microsoft/storm/internal/collector"
+	"github.com/microsoft/storm/pkg/storm/core"
 )
 
 type StormTestManager struct {

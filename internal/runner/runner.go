@@ -9,11 +9,12 @@ import (
 	"runtime"
 	"runtime/debug"
 	"slices"
-	"storm/internal/reporter"
-	"storm/internal/stormerror"
-	"storm/internal/testmgr"
-	"storm/pkg/storm/core"
 	"sync"
+
+	"github.com/microsoft/storm/internal/reporter"
+	"github.com/microsoft/storm/internal/stormerror"
+	"github.com/microsoft/storm/internal/testmgr"
+	"github.com/microsoft/storm/pkg/storm/core"
 
 	"github.com/sirupsen/logrus"
 )

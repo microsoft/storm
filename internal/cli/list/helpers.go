@@ -2,7 +2,8 @@ package list
 
 import (
 	"fmt"
-	"storm/pkg/storm/core"
+
+	"github.com/microsoft/storm/pkg/storm/core"
 )
 
 type ListHelpersCmd struct {

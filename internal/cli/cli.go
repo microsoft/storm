@@ -3,8 +3,8 @@ package cli
 import (
 	"os"
 
-	"storm/internal/cli/list"
-	"storm/internal/cli/run"
+	"github.com/microsoft/storm/internal/cli/list"
+	"github.com/microsoft/storm/internal/cli/run"
 
 	"github.com/alecthomas/kong"
 	log "github.com/sirupsen/logrus"

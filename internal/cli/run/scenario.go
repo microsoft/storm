@@ -1,8 +1,8 @@
 package run
 
 import (
-	"storm/internal/runner"
-	"storm/pkg/storm/core"
+	"github.com/microsoft/storm/internal/runner"
+	"github.com/microsoft/storm/pkg/storm/core"
 )
 
 type ScenarioCmd struct {

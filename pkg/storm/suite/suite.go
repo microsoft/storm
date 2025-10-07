@@ -6,9 +6,9 @@ import (
 	"os"
 	"slices"
 
-	"storm/internal/cli"
-	"storm/internal/collector"
-	"storm/pkg/storm/core"
+	"github.com/microsoft/storm/internal/cli"
+	"github.com/microsoft/storm/internal/collector"
+	"github.com/microsoft/storm/pkg/storm/core"
 
 	"github.com/alecthomas/kong"
 	"github.com/sirupsen/logrus"
@@ -70,7 +70,7 @@ func (s *StormSuite) Run() {
 	// Cancel the suite context.
 	s.cancel()
 
-	// This call will end the program!
+	// This call will end the program.
 	s.reportExitStatus(err)
 }
 
