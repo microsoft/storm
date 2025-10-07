@@ -3,6 +3,7 @@ package helloworld
 import (
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/microsoft/storm"
@@ -32,6 +33,7 @@ func (h *HelloWorldHelper) RegisterTestCases(r storm.TestRegistrar) error {
 	r.RegisterTestCase("myPassingTestCase", h.myPasssingTestCase)
 	r.RegisterTestCase("mySkippedTestCase", h.mySkippedTestCase)
 	r.RegisterTestCase("myTestCaseWithBackgroundJobs", h.myTestCaseWithBackgroundJobs)
+	r.RegisterTestCase("myTestCaseWithLogs", h.myTestCaseWithLogs)
 	r.RegisterTestCase("myFailingTestCase", h.myFailingTestCase)
 	r.RegisterTestCase("myErrorTestCase", h.myErrorTestCase)
 	return nil
@@ -88,6 +90,33 @@ func (h *HelloWorldHelper) myTestCaseWithBackgroundJobs(tc storm.TestCase) error
 
 	time.Sleep(time.Second) // Simulate some work in the main test case
 	logrus.Info("Main test case finished, but the background test case is still running!")
+
+	return nil
+}
+
+func (h *HelloWorldHelper) myTestCaseWithLogs(tc storm.TestCase) error {
+	logrus.Info("This test case will generate a log file that will be published to the log directory given to the test suite.")
+
+	// Simulate creating a log file
+	logFile1 := "/tmp/logfile1.log"
+
+	f, err := os.Create(logFile1)
+	if err != nil {
+		return fmt.Errorf("failed to create log file: %w", err)
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(fmt.Sprintf("This is a log file created at %s by the test case %s.\n",
+		time.Now().Format(time.RFC3339),
+		tc.Name(),
+	))
+	if err != nil {
+		return fmt.Errorf("failed to write to log file: %w", err)
+	}
+
+	// Publish the log file to the directory passed with `-l` option if the
+	// `run` or `helper` command.
+	tc.ArtifactBroker().PublishLogFile("logfile1.log", logFile1)
 
 	return nil
 }

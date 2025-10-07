@@ -57,6 +57,15 @@ func RegisterAndRunTests(suite core.SuiteContext,
 		}
 	}
 
+	// Prepare the log directory if needed
+	if logDir != nil {
+		suite.Logger().Infof("Saving logs to '%s'", *logDir)
+		err := os.MkdirAll(*logDir, 0755)
+		if err != nil {
+			return fmt.Errorf("failed to create log directory '%s': %w", *logDir, err)
+		}
+	}
+
 	// Parse the extra arguments for the runnable
 	err := parseExtraArguments(suite, args, registrantInstance)
 	if err != nil {
@@ -64,7 +73,7 @@ func RegisterAndRunTests(suite core.SuiteContext,
 	}
 
 	// Create a new test manager for the runnable
-	testMgr, err := testmgr.NewStormTestManager(suite, registrantInstance)
+	testMgr, err := testmgr.NewStormTestManager(suite, registrantInstance, logDir)
 	if err != nil {
 		return fmt.Errorf("failed to create test manager: %w", err)
 	}
@@ -99,12 +108,6 @@ func RegisterAndRunTests(suite core.SuiteContext,
 	}
 
 	if logDir != nil {
-		suite.Logger().Infof("Saving logs to '%s'", *logDir)
-		err := os.MkdirAll(*logDir, 0755)
-		if err != nil {
-			return fmt.Errorf("failed to create log directory '%s': %w", *logDir, err)
-		}
-
 		err = rep.SaveLogs(*logDir)
 		if err != nil {
 			return fmt.Errorf("failed to save logs to '%s': %w", *logDir, err)

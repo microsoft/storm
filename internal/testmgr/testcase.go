@@ -7,9 +7,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/microsoft/storm/internal/artifacts"
+	stormartifacts "github.com/microsoft/storm/pkg/storm/artifacts"
 	"github.com/microsoft/storm/pkg/storm/core"
 )
 
+// TestCase represents a single test case within a test suite. It implements
+// the core.TestCase interface. This is the concrete implementation of a test
+// case that is managed by the StormTestManager.
 type TestCase struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
@@ -24,17 +29,24 @@ type TestCase struct {
 	f               core.TestCaseFunction
 	suiteCleanup    []func()
 	waitGroup       sync.WaitGroup
+	broker          *artifacts.ArtifactBroker
 }
 
-func newTestCase(name string, f core.TestCaseFunction, ctx context.Context) *TestCase {
+// Internal constructor for a TestCase.
+func newTestCase(name string, f core.TestCaseFunction, ctx context.Context, artifactBroker *artifacts.ArtifactBroker) *TestCase {
 	tc_ctx, cancel := context.WithCancel(ctx)
 	tc := &TestCase{
 		name:   name,
 		f:      f,
 		status: TestCaseStatusPending,
+		broker: artifactBroker,
 		ctx:    tc_ctx,
 		cancel: cancel,
 	}
+
+	// The test is attached to the broker so that it knows which test case it is
+	// publishing artifacts for.
+	artifactBroker.AttachTestCase(tc)
 
 	return tc
 }
@@ -52,6 +64,16 @@ func (t *TestCase) Execute() error {
 	return t.f(t)
 }
 
+// Internal method to close the test case with the given status, reason, and
+// error. This method panics if the status is not a final status, or if the
+// current status is already a final status.
+//
+// This method is meant to be called at the end of a test case's execution,
+// or when the test case needs to be closed early (for example, when the test
+// case calls t.Fail or t.Skip).
+//
+// The method will wait for any background goroutines to finish, set the test's
+// end time and set the status, reason, and error of the test case.
 func (t *TestCase) close(status TestCaseStatus, reason string, err error) {
 	// Cancel the context to stop any goroutines that might be running
 	t.cancel()
@@ -216,4 +238,9 @@ func (t *TestCase) Context() context.Context {
 // BackgroundWaitGroup implements core.TestCase.
 func (t *TestCase) BackgroundWaitGroup() *sync.WaitGroup {
 	return &t.waitGroup
+}
+
+// ArtifactBroker implements core.TestCase.
+func (t *TestCase) ArtifactBroker() stormartifacts.ArtifactBroker {
+	return t.broker
 }
