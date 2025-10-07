@@ -41,6 +41,22 @@ func RegisterAndRunTests(suite core.SuiteContext,
 		Argumented:     registrant,
 	}
 
+	// Prepare the junit output directory if needed
+	if junitPath != nil {
+		junitPath := *junitPath
+		info, err := os.Stat(junitPath)
+		if err == nil && info.IsDir() {
+			return fmt.Errorf("cannot write JUnit XML to '%s': path is a directory", junitPath)
+		}
+
+		junitDir := path.Dir(junitPath)
+		suite.Logger().Infof("Producing JUnit XML output at '%s'", junitPath)
+		err = os.MkdirAll(junitDir, 0755)
+		if err != nil {
+			return fmt.Errorf("failed to create JUnit output directory '%s': %w", junitDir, err)
+		}
+	}
+
 	// Parse the extra arguments for the runnable
 	err := parseExtraArguments(suite, args, registrantInstance)
 	if err != nil {
@@ -76,17 +92,9 @@ func RegisterAndRunTests(suite core.SuiteContext,
 	rep.PrintReport()
 
 	if junitPath != nil {
-		junitPath := *junitPath
-		junitDir := path.Dir(junitPath)
-		suite.Logger().Infof("Producing JUnit XML output at '%s'", junitPath)
-		err := os.MkdirAll(junitDir, 0755)
+		err := rep.ProduceJUnitXML(*junitPath)
 		if err != nil {
-			return fmt.Errorf("failed to create JUnit output directory '%s': %w", junitDir, err)
-		}
-
-		err = rep.ProduceJUnitXML(junitPath)
-		if err != nil {
-			return fmt.Errorf("failed to produce JUnit XML at '%s': %w", junitPath, err)
+			return fmt.Errorf("failed to produce JUnit XML at '%s': %w", *junitPath, err)
 		}
 	}
 
