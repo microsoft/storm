@@ -11,8 +11,8 @@ import (
 	"github.com/jstemmer/go-junit-report/v2/junit"
 	log "github.com/sirupsen/logrus"
 
-	"storm/internal/testmgr"
-	"storm/pkg/storm/utils"
+	"github.com/microsoft/storm/internal/testmgr"
+	"github.com/microsoft/storm/pkg/storm/utils"
 )
 
 func toSecondsStr(d time.Duration) string {
