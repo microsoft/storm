@@ -30,7 +30,7 @@ func (b *ArtifactBroker) PublishLogFile(name string, source string) {
 		// This should never happen as the broker is initialized and attached to
 		// a test case internally by storm, but just in case, we report an
 		// internal error via panic.
-		panic("Internal Error: Artifact broker was not attached to a test case")
+		panic("internal error: Artifact broker was not attached to a test case before publishing a log file")
 	}
 
 	err := b.publishLogFileInner(name, source)
