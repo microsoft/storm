@@ -55,5 +55,10 @@ func (tm *StormTestManager) StopTimer() {
 }
 
 func (tm *StormTestManager) Duration() time.Duration {
+	if tm.endTime.IsZero() {
+		// If the end time is not set, return the duration since the start time.
+		return time.Since(tm.startTime)
+	}
+
 	return tm.endTime.Sub(tm.startTime)
 }
