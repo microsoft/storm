@@ -26,10 +26,19 @@ func (b *ArtifactBroker) AttachTestCase(tc core.TestCase) {
 }
 
 func (b *ArtifactBroker) PublishLogFile(name string, source string) {
-	err := b.publishLogFileInner(name, source)
-	if err != nil {
-		b.testCase.Error(fmt.Errorf("failed to publish log file %s: %w", name, err))
+	if b.testCase == nil {
+		// This should never happen as the broker is initialized and attached to
+		// a test case internally by storm, but just in case, we report an
+		// internal error via panic.
+		panic("Internal Error: Artifact broker was not attached to a test case")
 	}
+
+	err := b.publishLogFileInner(name, source)
+	if err == nil {
+		return
+	}
+
+	b.testCase.Error(fmt.Errorf("failed to publish log file %s from path %s: %w", name, source, err))
 }
 
 func (b *ArtifactBroker) publishLogFileInner(name string, source string) error {
