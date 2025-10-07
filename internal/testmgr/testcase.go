@@ -44,8 +44,8 @@ func newTestCase(name string, f core.TestCaseFunction, ctx context.Context, arti
 		cancel: cancel,
 	}
 
-	// They reference each other so that the broker can report errors to the
-	// test case.
+	// The test is attached to the broker so that it knows which test case it is
+	// publishing artifacts for.
 	artifactBroker.AttachTestCase(tc)
 
 	return tc

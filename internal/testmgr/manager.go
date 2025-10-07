@@ -29,10 +29,13 @@ func NewStormTestManager(
 		return nil, fmt.Errorf("failed to collect test cases: %w", err)
 	}
 
+	// Create a global artifact manager. Each test case will attach itself to
+	// this manager when it is invoked.
+	artifactManager := artifacts.NewArtifactManager(suite, logDir)
+
 	testCases := make([]*TestCase, len(collected))
 	for i, testCase := range collected {
-		artifactBroker := artifacts.NewArtifactBroker(suite, logDir)
-		testCases[i] = newTestCase(testCase.Name, testCase.F, suite.Context(), artifactBroker)
+		testCases[i] = newTestCase(testCase.Name, testCase.F, suite.Context(), artifactManager.NewBroker())
 	}
 
 	return &StormTestManager{
