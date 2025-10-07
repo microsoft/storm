@@ -204,7 +204,7 @@ func (t *TestCase) RunTime() time.Duration {
 	if t.endTime == nil {
 		return time.Since(t.startTime)
 	}
-	
+
 	return t.endTime.Sub(t.startTime)
 }
 
