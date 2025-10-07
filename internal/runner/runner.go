@@ -19,6 +19,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// RegisterAndRunTests registers the tests from the given registrant and runs
+// them. It takes care of argument parsing, setting up the test manager, and
+// producing reports. If watch is true, the output of the tests is forwarded to
+// the console in real-time. If logDir is not nil, logs are saved to the given
+// directory. If junitPath is not nil, a JUnit XML report is produced at the
+// given path.
 func RegisterAndRunTests(suite core.SuiteContext,
 	registrant interface {
 		core.Argumented
@@ -100,6 +106,10 @@ func RegisterAndRunTests(suite core.SuiteContext,
 	return rep.ExitError()
 }
 
+// executeTestCases runs all test cases in the given test manager. It takes
+// care of calling setup and cleanup methods if the runnable implements the
+// SetupCleanup interface. If watch is true, the output of the tests is
+// forwarded to the console in real-time.
 func executeTestCases(suite core.SuiteContext,
 	runnable *runnableInstance,
 	testManager *testmgr.StormTestManager,
@@ -125,6 +135,9 @@ func executeTestCases(suite core.SuiteContext,
 	bail := false
 
 	for _, testCase := range testManager.TestCases() {
+		// If bail is true, we are no longer running tests. Mark this test case
+		// as not run and 'continue' to iterate over all remaining test cases to
+		// mark them as not run.
 		if bail {
 			testCase.MarkNotRun("dependency failure")
 			continue
@@ -132,8 +145,16 @@ func executeTestCases(suite core.SuiteContext,
 
 		suite.Logger().Infof("%s (started)", testCase.Name())
 
-		// Run the test case.
+		// Capture the number of goroutines before running the test case.
+		// After the test case has run, we compare the number of goroutines to
+		// see if we have leaked any. Note that this is not a perfect check as
+		// other goroutines in the system may start or stop while we are running
+		// the test case, but it is better than nothing.
 		var startGoroutines = runtime.NumGoroutine()
+
+		// Call the captureOutput function to run the test case and capture its
+		// output. We also forward the output to the console if we are running
+		// in watch mode or in Azure DevOps.
 		captured, err := captureOutput(func() {
 			executeTestCase(testCase)
 		}, func(w io.Writer, s string) {
@@ -142,6 +163,7 @@ func executeTestCases(suite core.SuiteContext,
 			}
 		})
 
+		// Calculate the difference in goroutine count.
 		delta := runtime.NumGoroutine() - startGoroutines
 
 		// Store the captured output in the test case.
@@ -190,6 +212,14 @@ func executeTestCases(suite core.SuiteContext,
 	return nil
 }
 
+// executeTestCase runs the given test case in a standalone goroutine to support
+// tests calling runtime.Goexit() to terminate. The function will wait for the
+// goroutine to finish one way or another and then close the test case
+// as appropriate.
+//
+// If the test case finishes without error and is still marked as running, it is
+// marked as passed. Otherwise, if the test case panicked or returned an error,
+// it is marked as errored.
 func executeTestCase(testCase *testmgr.TestCase) {
 	var err error
 	var wg sync.WaitGroup
@@ -200,6 +230,8 @@ func executeTestCase(testCase *testmgr.TestCase) {
 	go func() {
 		defer wg.Done()
 
+		// Catch any panic that occurs during the execution of the test case and
+		// convert it to an error with runCatchPanic.
 		err = runCatchPanic(func() error {
 			return testCase.Execute()
 		})
@@ -216,6 +248,10 @@ func executeTestCase(testCase *testmgr.TestCase) {
 	}
 }
 
+// runCatchPanic runs the given function f and catches any panic that occurs
+// during its execution. If a panic occurs, it is converted to an error of
+// type *stormerror.PanicError and returned. If no panic occurs, the error
+// returned by f is returned as-is.
 func runCatchPanic(f func() error) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -226,6 +262,12 @@ func runCatchPanic(f func() error) (err error) {
 	return f()
 }
 
+// captureOutput runs the given function f while capturing all output to
+// stdout and stderr. The captured output is returned as a slice of strings,
+// one per line. The forward function is called for each line of output, which
+// can be used to forward the output to another writer (e.g. the console).
+// The forward function is called synchronously, so it should not block for
+// too long. The function returns an error if it fails to capture the output.
 func captureOutput(f func(), forward func(io.Writer, string)) ([]string, error) {
 	oldStdout := os.Stdout
 	oldStderr := os.Stderr
