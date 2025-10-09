@@ -9,6 +9,11 @@ import (
 	"github.com/microsoft/storm/pkg/storm/core"
 )
 
+const (
+	// TODO(#10): Make this configurable
+	DEFAULT_TEST_CLEANUP_TIMEOUT = 20 * time.Second
+)
+
 type StormTestManager struct {
 	registrant core.TestRegistrantMetadata
 	suite      core.SuiteContext
@@ -36,7 +41,7 @@ func NewStormTestManager(
 
 	testCases := make([]*TestCase, len(collected))
 	for i, testCase := range collected {
-		testCases[i] = newTestCase(testCase.Name, testCase.F, suite.Context(), artifactManager.NewBroker())
+		testCases[i] = newTestCase(testCase.Name, testCase.F, suite.Context(), artifactManager.NewBroker(), DEFAULT_TEST_CLEANUP_TIMEOUT)
 	}
 
 	return &StormTestManager{

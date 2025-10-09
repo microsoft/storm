@@ -30,18 +30,20 @@ type TestCase struct {
 	suiteCleanup    []func()
 	waitGroup       sync.WaitGroup
 	broker          *artifacts.ArtifactBroker
+	cleanupTimeout  time.Duration
 }
 
 // Internal constructor for a TestCase.
-func newTestCase(name string, f core.TestCaseFunction, ctx context.Context, artifactBroker *artifacts.ArtifactBroker) *TestCase {
+func newTestCase(name string, f core.TestCaseFunction, ctx context.Context, artifactBroker *artifacts.ArtifactBroker, cleanupTimeout time.Duration) *TestCase {
 	tc_ctx, cancel := context.WithCancel(ctx)
 	tc := &TestCase{
-		name:   name,
-		f:      f,
-		status: TestCaseStatusPending,
-		broker: artifactBroker,
-		ctx:    tc_ctx,
-		cancel: cancel,
+		name:           name,
+		f:              f,
+		status:         TestCaseStatusPending,
+		cleanupTimeout: cleanupTimeout,
+		broker:         artifactBroker,
+		ctx:            tc_ctx,
+		cancel:         cancel,
 	}
 
 	// The test is attached to the broker so that it knows which test case it is
@@ -89,8 +91,8 @@ func (t *TestCase) close(status TestCaseStatus, reason string, err error) {
 	select {
 	case <-successCh:
 		// Wait completed successfully
-	case <-time.After(20 * time.Second):
-		// Timeout after 20 seconds, rewrite closure status to error
+	case <-time.After(t.cleanupTimeout):
+		// Timeout after t.cleanupTimeout, rewrite closure status to error
 		status = TestCaseStatusError
 		err = fmt.Errorf("background tasks took too long to finish")
 	}
