@@ -25,6 +25,15 @@ func (tcs TestCaseStatus) IsFinal() bool {
 		tcs == TestCaseStatusError
 }
 
+// Ran returns whether the test case was actually executed. This is true for
+// Passed, Failed, and Error statuses. It is false for Pending, Running,
+// Skipped, and NotRun statuses.
+func (tcs TestCaseStatus) Ran() bool {
+	return tcs == TestCaseStatusPassed ||
+		tcs == TestCaseStatusFailed ||
+		tcs == TestCaseStatusError
+}
+
 func (tcs TestCaseStatus) String() string {
 	switch tcs {
 	case TestCaseStatusPending:

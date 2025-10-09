@@ -9,10 +9,16 @@ import (
 	"github.com/microsoft/storm/pkg/storm/core"
 )
 
+const (
+	// TODO(#10): Make this configurable
+	DEFAULT_TEST_CLEANUP_TIMEOUT = 20 * time.Second
+)
+
 type StormTestManager struct {
 	registrant core.TestRegistrantMetadata
 	suite      core.SuiteContext
 	startTime  time.Time
+	endTime    time.Time
 	testCases  []*TestCase
 }
 
@@ -35,7 +41,7 @@ func NewStormTestManager(
 
 	testCases := make([]*TestCase, len(collected))
 	for i, testCase := range collected {
-		testCases[i] = newTestCase(testCase.Name, testCase.F, suite.Context(), artifactManager.NewBroker())
+		testCases[i] = newTestCase(testCase.Name, testCase.F, suite.Context(), artifactManager.NewBroker(), DEFAULT_TEST_CLEANUP_TIMEOUT)
 	}
 
 	return &StormTestManager{
@@ -56,4 +62,17 @@ func (tm *StormTestManager) Registrant() core.TestRegistrantMetadata {
 
 func (tm *StormTestManager) Suite() core.SuiteContext {
 	return tm.suite
+}
+
+func (tm *StormTestManager) StopTimer() {
+	tm.endTime = time.Now()
+}
+
+func (tm *StormTestManager) Duration() time.Duration {
+	if tm.endTime.IsZero() {
+		// If the end time is not set, return the duration since the start time.
+		return time.Since(tm.startTime)
+	}
+
+	return tm.endTime.Sub(tm.startTime)
 }
