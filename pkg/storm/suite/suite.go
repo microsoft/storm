@@ -51,6 +51,7 @@ func CreateSuite(name string) StormSuite {
 		cancel:    cancel,
 		scenarios: make([]core.Scenario, 0),
 		helpers:   make([]core.Helper, 0),
+		scripts:   make([]any, 0),
 		Log:       logger,
 	}
 }
