@@ -98,7 +98,7 @@ func TestLogEndGroup(t *testing.T) {
 
 	logEndGroup()
 
-	expected := "##[endgroup]"
+	expected := "##[endgroup]\n"
 	if buf.String() != expected {
 		t.Errorf("expected output '%s', got '%s'", expected, buf.String())
 	}
@@ -125,7 +125,7 @@ func TestGroupClose_SingleGroup(t *testing.T) {
 		t.Errorf("expected 0 groups in stack after close, got %d", len(groups))
 	}
 
-	expected := "##[endgroup]"
+	expected := "##[endgroup]\n"
 	if buf.String() != expected {
 		t.Errorf("expected output '%s', got '%s'", expected, buf.String())
 	}
@@ -155,7 +155,7 @@ func TestGroupClose_NestedGroups_CloseInner(t *testing.T) {
 		t.Errorf("expected 2 groups in stack after closing inner, got %d", len(groups))
 	}
 
-	expected := "##[endgroup]"
+	expected := "##[endgroup]\n"
 	if buf.String() != expected {
 		t.Errorf("expected output '%s', got '%s'", expected, buf.String())
 	}
@@ -183,20 +183,18 @@ func TestGroupClose_NestedGroups_CloseOuter(t *testing.T) {
 	OpenGroup("Inner")
 	buf.Reset() // Clear the open group output
 
-	// Close the outermost group - the current implementation will only close the last group
-	// because it pops from the end and decrements the index
+	// Close the outermost group - should close all groups (Outer, Middle, Inner)
 	group1.Close()
 
-	// The implementation has a bug: it only closes the last group when trying to close an earlier one
-	// It should close all groups from Inner back to Outer, but currently only closes Inner
-	if len(groups) != 2 {
-		t.Errorf("expected 2 groups in stack (current implementation limitation), got %d", len(groups))
+	// All groups should be closed
+	if len(groups) != 0 {
+		t.Errorf("expected 0 groups in stack after closing outer, got %d", len(groups))
 	}
 
-	// Should see only 1 endgroup command due to implementation
-	endgroupCount := strings.Count(buf.String(), "##[endgroup]")
-	if endgroupCount != 1 {
-		t.Errorf("expected 1 endgroup command (current implementation), got %d", endgroupCount)
+	// Should see 3 endgroup commands (one for each group)
+	endgroupCount := strings.Count(buf.String(), "##[endgroup]\n")
+	if endgroupCount != 3 {
+		t.Errorf("expected 3 endgroup commands, got %d", endgroupCount)
 	}
 }
 
@@ -217,23 +215,23 @@ func TestGroupClose_NestedGroups_CloseMiddle(t *testing.T) {
 	OpenGroup("Inner")
 	buf.Reset() // Clear the open group output
 
-	// Close the middle group - the current implementation will only close the last group
+	// Close the middle group - should close Middle and Inner
 	group2.Close()
 
-	// The implementation has a bug: it only closes the last group
-	if len(groups) != 2 {
-		t.Errorf("expected 2 groups in stack (current implementation limitation), got %d", len(groups))
+	// Only outer group should remain
+	if len(groups) != 1 {
+		t.Errorf("expected 1 group in stack after closing middle, got %d", len(groups))
 	}
 
-	// Should see only 1 endgroup command due to implementation
-	endgroupCount := strings.Count(buf.String(), "##[endgroup]")
-	if endgroupCount != 1 {
-		t.Errorf("expected 1 endgroup command (current implementation), got %d", endgroupCount)
+	// Should see 2 endgroup commands (Middle and Inner)
+	endgroupCount := strings.Count(buf.String(), "##[endgroup]\n")
+	if endgroupCount != 2 {
+		t.Errorf("expected 2 endgroup commands, got %d", endgroupCount)
 	}
 
-	// Verify correct groups remain
-	if groups[0] != group1 || groups[1] != group2 {
-		t.Error("incorrect groups remaining in stack")
+	// Verify correct group remains
+	if len(groups) > 0 && groups[0] != group1 {
+		t.Error("incorrect group remaining in stack")
 	}
 }
 
