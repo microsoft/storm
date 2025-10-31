@@ -18,7 +18,7 @@ func logCreateGroup(name string) {
 }
 
 func logEndGroup() {
-	fmt.Fprint(realStdOut, "##[endgroup]")
+	fmt.Fprintln(realStdOut, "##[endgroup]")
 }
 
 type Group struct{}
