@@ -142,8 +142,8 @@ func (h *HelloWorldHelper) myTestCaseWithArtifacts(tc storm.TestCase) error {
 		return fmt.Errorf("failed to write to artifact file: %w", err)
 	}
 
-	// Publish the artifact file to the directory passed with `-a` option if
-	// the `run` or `helper` command.
+	// Publish the artifact file to the directory passed with `-o` option of
+	// the `run` or `helper` commands.
 	tc.ArtifactBroker().PublishArtifact("my_artifacts", artifactFile)
 
 	// Upload the artifact to Azure DevOps if running in that context.
