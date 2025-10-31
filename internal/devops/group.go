@@ -32,7 +32,7 @@ func logEndGroup() {
 // Group type. It MUST have a non-zero size to ensure unique pointers.
 type Group struct{ index int }
 
-// Closes the group and closes+removes all groups above it from the stack(aka
+// Closes the group and closes+removes all groups above it from the stack (aka
 // subgroups).
 func (g *Group) Close() {
 	groupsMutex.Lock()
