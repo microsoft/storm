@@ -104,7 +104,7 @@ func (b *ArtifactManager) publishLogFile(testcase core.TestCase, name string, so
 
 func (b *ArtifactManager) publishArtifact(directory string, source string) error {
 	if b.artifactDir == nil {
-		b.suite.Logger().Warnf("Not publishing artifact '%s' because no artifact directory was configured", directory)
+		b.suite.Logger().Warnf("Not publishing artifact from '%s' because no artifact directory was configured", source)
 		return nil
 	}
 
