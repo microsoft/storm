@@ -11,6 +11,8 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/microsoft/storm/internal/artifacts"
+	"github.com/microsoft/storm/internal/devops"
 	"github.com/microsoft/storm/internal/reporter"
 	"github.com/microsoft/storm/internal/stormerror"
 	"github.com/microsoft/storm/internal/testmgr"
@@ -34,6 +36,7 @@ func RegisterAndRunTests(suite core.SuiteContext,
 	watch bool,
 	logDir *string,
 	junitPath *string,
+	artifactDir *string,
 ) error {
 	// Create a new runnable instance
 	registrantInstance := &runnableInstance{
@@ -57,23 +60,21 @@ func RegisterAndRunTests(suite core.SuiteContext,
 		}
 	}
 
-	// Prepare the log directory if needed
-	if logDir != nil {
-		suite.Logger().Infof("Saving logs to '%s'", *logDir)
-		err := os.MkdirAll(*logDir, 0755)
-		if err != nil {
-			return fmt.Errorf("failed to create log directory '%s': %w", *logDir, err)
-		}
+	// Create a global artifact manager. Each test case will attach itself to
+	// this manager when it is invoked.
+	artifactManager, err := artifacts.NewArtifactManager(suite, logDir, artifactDir)
+	if err != nil {
+		return fmt.Errorf("failed to create artifact manager: %w", err)
 	}
 
 	// Parse the extra arguments for the runnable
-	err := parseExtraArguments(suite, args, registrantInstance)
+	err = parseExtraArguments(suite, args, registrantInstance)
 	if err != nil {
 		return err
 	}
 
 	// Create a new test manager for the runnable
-	testMgr, err := testmgr.NewStormTestManager(suite, registrantInstance, logDir)
+	testMgr, err := testmgr.NewStormTestManager(suite, registrantInstance, artifactManager)
 	if err != nil {
 		return fmt.Errorf("failed to create test manager: %w", err)
 	}
@@ -145,7 +146,11 @@ func executeTestCases(suite core.SuiteContext,
 
 	bail := false
 
-	for _, testCase := range testManager.TestCases() {
+	totalTestCases := len(testManager.TestCases())
+	for i, testCase := range testManager.TestCases() {
+		if suite.AzureDevops() {
+			devops.SetProgress(float64(i) / float64(totalTestCases))
+		}
 		// If bail is true, we are no longer running tests. Mark this test case
 		// as not run and 'continue' to iterate over all remaining test cases to
 		// mark them as not run.
@@ -218,6 +223,10 @@ func executeTestCases(suite core.SuiteContext,
 		if err != nil {
 			return newCleanupError(runnable, err)
 		}
+	}
+
+	if suite.AzureDevops() {
+		devops.SetProgress(100)
 	}
 
 	return nil

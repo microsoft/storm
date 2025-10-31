@@ -14,11 +14,11 @@ func OpenGroup(name string) *Group {
 }
 
 func logCreateGroup(name string) {
-	fmt.Printf("##[group]%s\n", name)
+	fmt.Fprintf(realStdOut, "##[group]%s\n", name)
 }
 
 func logEndGroup() {
-	fmt.Println("##[endgroup]")
+	fmt.Fprint(realStdOut, "##[endgroup]")
 }
 
 type Group struct{}

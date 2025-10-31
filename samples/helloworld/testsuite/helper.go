@@ -34,6 +34,7 @@ func (h *HelloWorldHelper) RegisterTestCases(r storm.TestRegistrar) error {
 	r.RegisterTestCase("mySkippedTestCase", h.mySkippedTestCase)
 	r.RegisterTestCase("myTestCaseWithBackgroundJobs", h.myTestCaseWithBackgroundJobs)
 	r.RegisterTestCase("myTestCaseWithLogs", h.myTestCaseWithLogs)
+	r.RegisterTestCase("myTestCaseWithArtifacts", h.myTestCaseWithArtifacts)
 	r.RegisterTestCase("myFailingTestCase", h.myFailingTestCase)
 	r.RegisterTestCase("myErrorTestCase", h.myErrorTestCase)
 	return nil
@@ -117,6 +118,36 @@ func (h *HelloWorldHelper) myTestCaseWithLogs(tc storm.TestCase) error {
 	// Publish the log file to the directory passed with `-l` option if the
 	// `run` or `helper` command.
 	tc.ArtifactBroker().PublishLogFile("logfile1.log", logFile1)
+
+	return nil
+}
+
+func (h *HelloWorldHelper) myTestCaseWithArtifacts(tc storm.TestCase) error {
+	logrus.Info("This test case will generate an artifact that will be published to the artifact directory given to the test suite.")
+
+	// Simulate creating an artifact file
+	artifactFile := "/tmp/artifact1.txt"
+
+	f, err := os.Create(artifactFile)
+	if err != nil {
+		return fmt.Errorf("failed to create artifact file: %w", err)
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(fmt.Sprintf("This is an artifact file created at %s by the test case %s.\n",
+		time.Now().Format(time.RFC3339),
+		tc.Name(),
+	))
+	if err != nil {
+		return fmt.Errorf("failed to write to artifact file: %w", err)
+	}
+
+	// Publish the artifact file to the directory passed with `-a` option if
+	// the `run` or `helper` command.
+	tc.ArtifactBroker().PublishArtifact("my_artifacts", artifactFile)
+
+	// Upload the artifact to Azure DevOps if running in that context.
+	tc.ArtifactBroker().UploadArtifact("artifact1", "", artifactFile)
 
 	return nil
 }
