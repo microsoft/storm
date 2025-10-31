@@ -102,14 +102,10 @@ func (b *ArtifactManager) publishLogFile(testcase core.TestCase, name string, so
 	return nil
 }
 
-func (b *ArtifactManager) publishArtifact(name string, source string) error {
+func (b *ArtifactManager) publishArtifact(directory string, source string) error {
 	if b.artifactDir == nil {
-		b.suite.Logger().Warnf("Not publishing artifact '%s' because no artifact directory was configured", name)
+		b.suite.Logger().Warnf("Not publishing artifact '%s' because no artifact directory was configured", directory)
 		return nil
-	}
-
-	if name == "" {
-		return fmt.Errorf("artifact name cannot be empty")
 	}
 
 	if source == "" {
@@ -131,7 +127,12 @@ func (b *ArtifactManager) publishArtifact(name string, source string) error {
 		return fmt.Errorf("source %s is not a regular file", abspath)
 	}
 
-	destPath := filepath.Join(*b.artifactDir, name, info.Name())
+	// Default to current directory if none specified
+	if directory == "" {
+		directory = "."
+	}
+
+	destPath := filepath.Join(*b.artifactDir, directory, info.Name())
 	err = MkdirParents(destPath, 0o755)
 	if err != nil {
 		return err
