@@ -1,6 +1,9 @@
 package devops
 
-import "os"
+import (
+	"io"
+	"os"
+)
 
 // realStdOut is the original os.Stdout before any redirection.
-var realStdOut = os.Stdout
+var realStdOut io.Writer = os.Stdout
