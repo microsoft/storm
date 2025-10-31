@@ -20,15 +20,22 @@ type cli struct {
 	List   list.ListCmd    `cmd:"" help:"List resources"`
 	Run    run.ScenarioCmd `cmd:"" help:"Run a specific scenario"`
 	Helper run.HelperCmd   `cmd:"" help:"Run a specific helper"`
+	Script run.ScriptCmd   `cmd:"" help:"Run a specific script"`
 }
 
-func ParseCommandLine(name string) (*kong.Context, GlobalOpts) {
+func ParseCommandLine(name string, scripts []any) (*kong.Context, GlobalOpts) {
 	// Force display help if no arguments are provided
 	if len(os.Args) < 2 {
 		os.Args = append(os.Args, "--help")
 	}
 
 	cli := cli{}
+
+	cli.Script.Plugins = kong.Plugins{}
+	for _, script := range scripts {
+		cli.Script.Plugins = append(cli.Script.Plugins, script)
+	}
+
 	ctx := kong.Parse(&cli, kong.Name(name))
 	return ctx, cli.Global
 }

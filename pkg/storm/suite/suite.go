@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
+	"runtime"
 	"slices"
 
 	"github.com/microsoft/storm/internal/cli"
 	"github.com/microsoft/storm/internal/collector"
 	"github.com/microsoft/storm/pkg/storm/core"
 
-	"github.com/alecthomas/kong"
 	"github.com/sirupsen/logrus"
 )
 
@@ -19,18 +20,17 @@ type StormSuite struct {
 	scenarios   []core.Scenario
 	ctx         context.Context
 	cancel      context.CancelFunc
-	kong_ctx    *kong.Context
 	Log         *logrus.Logger
 	helpers     []core.Helper
+	scripts     []any
 	azureDevops bool
 }
 
 func CreateSuite(name string) StormSuite {
 	name = fmt.Sprintf("storm-%s", name)
-	kong_ctx, global := cli.ParseCommandLine(name)
 
 	logger := logrus.New()
-	logger.SetLevel(global.Verbosity)
+	logger.SetLevel(logrus.InfoLevel)
 	logger.SetFormatter(&logrus.TextFormatter{
 		ForceColors: true,
 	})
@@ -46,26 +46,26 @@ func CreateSuite(name string) StormSuite {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return StormSuite{
-		name:        name,
-		ctx:         ctx,
-		cancel:      cancel,
-		scenarios:   make([]core.Scenario, 0),
-		helpers:     make([]core.Helper, 0),
-		kong_ctx:    kong_ctx,
-		Log:         logger,
-		azureDevops: global.AzureDevops,
+		name:      name,
+		ctx:       ctx,
+		cancel:    cancel,
+		scenarios: make([]core.Scenario, 0),
+		helpers:   make([]core.Helper, 0),
+		Log:       logger,
 	}
 }
 
 // Run the storm suite
 func (s *StormSuite) Run() {
-	if s.kong_ctx == nil {
-		s.Log.Fatalf("Suite '%s' not initialized", s.name)
-	}
+	// Parse command-line arguments
+	kong_ctx, globals := cli.ParseCommandLine(s.name, s.scripts)
+
+	s.azureDevops = globals.AzureDevops
+	s.Log.SetLevel(globals.Verbosity)
 
 	s.Log.Infof("Running suite '%s' - %d scenarios, %d helpers collected.", s.name, len(s.scenarios), len(s.helpers))
-	s.kong_ctx.BindTo(s, (*core.SuiteContext)(nil))
-	err := s.kong_ctx.Run()
+	kong_ctx.BindTo(s, (*core.SuiteContext)(nil))
+	err := kong_ctx.Run()
 
 	// Cancel the suite context.
 	s.cancel()
@@ -120,6 +120,45 @@ func (s *StormSuite) AddHelper(helper core.Helper) {
 	s.helpers = append(s.helpers, helper)
 }
 
+// Adds a script to the suite
+func (s *StormSuite) AddScriptSet(script any) {
+	v := reflect.ValueOf(script)
+	iv := reflect.Indirect(v)
+	if v.Kind() != reflect.Ptr || iv.Kind() != reflect.Struct {
+		_, file, line, ok := runtime.Caller(1)
+		if !ok {
+			file = "unknown"
+			line = 0
+		}
+		s.Log.Fatalf("Script from '%s:%d' must be a pointer to a struct but got %T", file, line, script)
+	}
+
+	scriptName := v.Type().String()
+
+	// Validate that all public fields have the cmd:"" tag
+	t := iv.Type()
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+
+		// Skip unexported fields
+		if !field.IsExported() {
+			continue
+		}
+
+		// Check for cmd tag
+		_, ok := field.Tag.Lookup("cmd")
+		if !ok {
+			s.Log.Fatalf(
+				"Failed to validate script struct '%s': script structs may only contain subcommand fields, but field '%s' is missing a cmd tag.",
+				scriptName,
+				field.Name,
+			)
+		}
+	}
+
+	s.scripts = append(s.scripts, script)
+}
+
 // Returns the name of the suite
 func (s *StormSuite) Name() string {
 	return s.name
@@ -159,6 +198,10 @@ func (s *StormSuite) Helper(name string) core.Helper {
 
 	s.Log.Fatalf("Helper '%s' not found", name)
 	return nil
+}
+
+func (s *StormSuite) Scripts() []any {
+	return s.scripts
 }
 
 func (s *StormSuite) Logger() *logrus.Logger {
