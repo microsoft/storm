@@ -15,5 +15,8 @@ func main() {
 	// Add hello world helper
 	storm.AddHelper(&helloworld.HelloWorldHelper{})
 
+	// Add hello world script
+	storm.AddScriptSet(&helloworld.HelloWorldScriptSet{})
+
 	storm.Run()
 }

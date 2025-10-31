@@ -5,4 +5,5 @@ type ListCmd struct {
 	Tags       ListTagsCmd       `cmd:"" help:"List all tags"`
 	StagePaths ListStagePathsCmd `cmd:"" help:"List all stage paths"`
 	Helpers    ListHelpersCmd    `cmd:"" help:"List all helpers"`
+	// Scripts    ListScriptsCmd    `cmd:"" help:"List all scripts"`
 }
