@@ -53,7 +53,7 @@ func TestPublishArtifact_WithoutFolder(t *testing.T) {
 		}
 	})
 
-	expected := "##vso[artifact.upload artifactname=myartifact]/path/to/file.txt"
+	expected := "##vso[artifact.upload artifactname=myartifact]/path/to/file.txt\n"
 	if output != expected {
 		t.Errorf("expected output '%s', got '%s'", expected, output)
 	}
@@ -67,7 +67,7 @@ func TestPublishArtifact_WithFolder(t *testing.T) {
 		}
 	})
 
-	expected := "##vso[artifact.upload containerfolder=logs;artifactname=myartifact]/path/to/file.txt"
+	expected := "##vso[artifact.upload containerfolder=logs;artifactname=myartifact]/path/to/file.txt\n"
 	if output != expected {
 		t.Errorf("expected output '%s', got '%s'", expected, output)
 	}
@@ -81,7 +81,7 @@ func TestPublishArtifact_WithFolderLeadingSlash(t *testing.T) {
 		}
 	})
 
-	expected := "##vso[artifact.upload containerfolder=logs;artifactname=myartifact]/path/to/file.txt"
+	expected := "##vso[artifact.upload containerfolder=logs;artifactname=myartifact]/path/to/file.txt\n"
 	if output != expected {
 		t.Errorf("expected output '%s', got '%s'", expected, output)
 	}
@@ -92,7 +92,7 @@ func TestUploadArtifactInFolder(t *testing.T) {
 		uploadArtifactInFolder("reports", "test-results", "/tmp/results.xml")
 	})
 
-	expected := "##vso[artifact.upload containerfolder=reports;artifactname=test-results]/tmp/results.xml"
+	expected := "##vso[artifact.upload containerfolder=reports;artifactname=test-results]/tmp/results.xml\n"
 	if output != expected {
 		t.Errorf("expected output '%s', got '%s'", expected, output)
 	}
@@ -103,7 +103,7 @@ func TestUploadArtifactInFolder_NestedFolder(t *testing.T) {
 		uploadArtifactInFolder("logs/test/results", "output", "/var/log/test.log")
 	})
 
-	expected := "##vso[artifact.upload containerfolder=logs/test/results;artifactname=output]/var/log/test.log"
+	expected := "##vso[artifact.upload containerfolder=logs/test/results;artifactname=output]/var/log/test.log\n"
 	if output != expected {
 		t.Errorf("expected output '%s', got '%s'", expected, output)
 	}
@@ -114,7 +114,7 @@ func TestUploadArtifact(t *testing.T) {
 		uploadArtifact("build-output", "/build/app.exe")
 	})
 
-	expected := "##vso[artifact.upload artifactname=build-output]/build/app.exe"
+	expected := "##vso[artifact.upload artifactname=build-output]/build/app.exe\n"
 	if output != expected {
 		t.Errorf("expected output '%s', got '%s'", expected, output)
 	}
@@ -125,7 +125,7 @@ func TestUploadArtifact_WithSpaces(t *testing.T) {
 		uploadArtifact("my artifact", "/path/to/my file.txt")
 	})
 
-	expected := "##vso[artifact.upload artifactname=my artifact]/path/to/my file.txt"
+	expected := "##vso[artifact.upload artifactname=my artifact]/path/to/my file.txt\n"
 	if output != expected {
 		t.Errorf("expected output '%s', got '%s'", expected, output)
 	}

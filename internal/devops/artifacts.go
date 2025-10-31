@@ -43,18 +43,17 @@ func PublishArtifact(folder string, name string, source string) error {
 		uploadArtifact(name, source)
 	}
 
-	// Publish the artifact
 	return nil
 }
 
 // uploadArtifactInFolder produces the logging command to upload an artifact
 // inside of a folder to Azure DevOps.
 func uploadArtifactInFolder(folder string, name string, path string) {
-	fmt.Fprintf(realStdOut, "##vso[artifact.upload containerfolder=%s;artifactname=%s]%s", folder, name, path)
+	fmt.Fprintf(realStdOut, "##vso[artifact.upload containerfolder=%s;artifactname=%s]%s\n", folder, name, path)
 }
 
 // uploadArtifact produces the logging command to upload an artifact to
 // Azure DevOps.
 func uploadArtifact(name string, path string) {
-	fmt.Fprintf(realStdOut, "##vso[artifact.upload artifactname=%s]%s", name, path)
+	fmt.Fprintf(realStdOut, "##vso[artifact.upload artifactname=%s]%s\n", name, path)
 }

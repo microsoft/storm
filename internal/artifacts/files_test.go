@@ -307,4 +307,3 @@ func TestMkdirParents_CustomPermissions(t *testing.T) {
 	// Note: Actual permission checking can be platform-dependent and affected by umask,
 	// so we just verify the directory was created
 }
-
