@@ -207,7 +207,7 @@ func executeTestCases(suite core.SuiteContext,
 		// for cleanup activities. A division by zero is impossible here since
 		// we would not be in this loop if there were no test cases.
 		if suite.AzureDevops() {
-			devops.SetProgress(0.95 * float64(i) / float64(totalTestCases))
+			devops.SetProgress(0.95 * float64(i+1) / float64(totalTestCases))
 		}
 	}
 
