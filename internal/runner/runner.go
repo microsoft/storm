@@ -148,9 +148,6 @@ func executeTestCases(suite core.SuiteContext,
 
 	totalTestCases := len(testManager.TestCases())
 	for i, testCase := range testManager.TestCases() {
-		if suite.AzureDevops() {
-			devops.SetProgress(float64(i) / float64(totalTestCases))
-		}
 		// If bail is true, we are no longer running tests. Mark this test case
 		// as not run and 'continue' to iterate over all remaining test cases to
 		// mark them as not run.
@@ -205,6 +202,13 @@ func executeTestCases(suite core.SuiteContext,
 			suite.Logger().Warnf("Test case %s has leaked goroutines: ended with %d more goroutine(s) than expected", testCase.Name(), delta)
 		}
 
+		// Update progress in Azure DevOps if needed.
+		// Artificially cap progress to 95% before cleanup to leave some room
+		// for cleanup activities. A division by zero is impossible here since
+		// we would not be in this loop if there were no test cases.
+		if suite.AzureDevops() {
+			devops.SetProgress(0.95 * float64(i) / float64(totalTestCases))
+		}
 	}
 
 	// If we have any cleanup functions, run them in reverse order.
@@ -225,6 +229,7 @@ func executeTestCases(suite core.SuiteContext,
 		}
 	}
 
+	// Ensure we set progress to 100% in Azure DevOps.
 	if suite.AzureDevops() {
 		devops.SetProgress(100)
 	}
