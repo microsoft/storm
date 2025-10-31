@@ -6,11 +6,9 @@ import (
 )
 
 type HelperCmd struct {
-	Helper     string   `arg:"" name:"helper" help:"Name of the helper to run"`
-	Watch      bool     `short:"w" help:"Watch the output of the helper live"`
-	LogDir     *string  `short:"l" help:"Optional directory to save logs to. Will be created if it does not exist." type:"path"`
-	JUnit      *string  `short:"j" help:"Produce JUnit XML output at the given path." type:"path"`
-	HelperArgs []string `arg:"" passthrough:"all" help:"Arguments to pass to the helper, you may use '--' to force passthrough." optional:""`
+	Helper     string             `arg:"" name:"helper" help:"Name of the helper to run"`
+	Common     CommonRunnableOpts `embed:""`
+	HelperArgs []string           `arg:"" passthrough:"all" help:"Arguments to pass to the helper, you may use '--' to force passthrough." optional:""`
 }
 
 func (cmd *HelperCmd) Run(suite core.SuiteContext) error {
@@ -19,5 +17,13 @@ func (cmd *HelperCmd) Run(suite core.SuiteContext) error {
 
 	helper := suite.Helper(cmd.Helper)
 
-	return runner.RegisterAndRunTests(suite, helper, cmd.HelperArgs, cmd.Watch, cmd.LogDir, cmd.JUnit)
+	return runner.RegisterAndRunTests(
+		suite,
+		helper,
+		cmd.HelperArgs,
+		cmd.Common.Watch,
+		cmd.Common.LogDir,
+		cmd.Common.JUnit,
+		cmd.Common.Output,
+	)
 }
