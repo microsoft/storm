@@ -5,6 +5,9 @@ import (
 	"github.com/microsoft/storm/pkg/storm/suite"
 )
 
+type StormSuite = suite.StormSuite
+type SuiteContext = core.SuiteContext
+
 type Scenario = core.Scenario
 type BaseScenario = core.BaseScenario
 
@@ -20,6 +23,6 @@ type TestCaseFunction = core.TestCaseFunction
 type LoggerProvider = core.LoggerProvider
 
 // Creates a new suite with the given name.
-func CreateSuite(name string) suite.StormSuite {
+func CreateSuite(name string) StormSuite {
 	return suite.CreateSuite(name)
 }
