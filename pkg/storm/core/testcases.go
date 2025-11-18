@@ -34,6 +34,11 @@ type TestCase interface {
 	// goroutine.
 	Skip(reason string)
 
+	// Skip this and all subsequent test cases. Implementations will stop
+	// execution by calling runtime.Goexit(), which then runs all deferred calls
+	// in the current goroutine.
+	SkipAll(reason string)
+
 	// Get the test case run time
 	RunTime() time.Duration
 

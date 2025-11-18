@@ -31,6 +31,7 @@ type TestCase struct {
 	waitGroup       sync.WaitGroup
 	broker          *artifacts.ArtifactBroker
 	cleanupTimeout  time.Duration
+	skipAllInvoked  bool
 }
 
 // Internal constructor for a TestCase.
@@ -130,9 +131,9 @@ func (t *TestCase) close(status TestCaseStatus, reason string, err error) {
 
 // Returns whether this test caused a bail condition, which means that the test
 // suite should stop. This is true if the test failed or errored out in a way
-// that does not allow for recovery.
+// that does not allow for recovery, or if SkipAll was invoked by the test code.
 func (t *TestCase) IsBailCondition() bool {
-	return t.status.IsBad()
+	return t.status.IsBad() || t.skipAllInvoked
 }
 
 // Returns the collected output of the test case.
@@ -213,6 +214,13 @@ func (t *TestCase) FailFromError(err error) {
 
 // Skip implements core.TestCase.
 func (t *TestCase) Skip(reason string) {
+	t.close(TestCaseStatusSkipped, reason, nil)
+	runtime.Goexit()
+}
+
+// SkipAll implements core.TestCase.
+func (t *TestCase) SkipAll(reason string) {
+	t.skipAllInvoked = true
 	t.close(TestCaseStatusSkipped, reason, nil)
 	runtime.Goexit()
 }
