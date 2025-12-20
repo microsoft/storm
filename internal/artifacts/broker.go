@@ -42,12 +42,21 @@ func (b *ArtifactBroker) PublishLogFile(name string, source string) {
 }
 
 // PublishArtifact implements storm/artifacts.ArtifactBroker.
-func (b *ArtifactBroker) PublishArtifact(directory string, source string) {
+func (b *ArtifactBroker) PublishArtifact(destination string, source string) {
 	b.checkState()
 
-	err := b.manager.publishArtifact(directory, source)
+	err := b.manager.publishArtifact(destination, source)
 	if err != nil {
 		b.testCase.Error(fmt.Errorf("failed to publish artifact from path '%s' to output directory: %w", source, err))
+	}
+}
+
+func (b *ArtifactBroker) PublishArtifactData(destination string, data []byte) {
+	b.checkState()
+
+	err := b.manager.publishArtifactData(destination, data)
+	if err != nil {
+		b.testCase.Error(fmt.Errorf("failed to publish artifact data to '%s': %w", destination, err))
 	}
 }
 

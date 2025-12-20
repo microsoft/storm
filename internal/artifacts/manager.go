@@ -102,10 +102,14 @@ func (b *ArtifactManager) publishLogFile(testcase core.TestCase, name string, so
 	return nil
 }
 
-func (b *ArtifactManager) publishArtifact(directory string, source string) error {
+func (b *ArtifactManager) publishArtifact(destination string, source string) error {
 	if b.artifactDir == nil {
 		b.suite.Logger().Warnf("Not publishing artifact from '%s' because no artifact directory was configured", source)
 		return nil
+	}
+
+	if destination == "" {
+		return fmt.Errorf("artifact destination cannot be empty")
 	}
 
 	if source == "" {
@@ -127,12 +131,7 @@ func (b *ArtifactManager) publishArtifact(directory string, source string) error
 		return fmt.Errorf("source %s is not a regular file", abspath)
 	}
 
-	// Default to current directory if none specified
-	if directory == "" {
-		directory = "."
-	}
-
-	destPath := filepath.Join(*b.artifactDir, directory, info.Name())
+	destPath := filepath.Join(*b.artifactDir, destination)
 	err = MkdirParents(destPath, 0o755)
 	if err != nil {
 		return err
@@ -141,6 +140,30 @@ func (b *ArtifactManager) publishArtifact(directory string, source string) error
 	_, err = CopyFile(abspath, destPath)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (b *ArtifactManager) publishArtifactData(destination string, data []byte) error {
+	if b.artifactDir == nil {
+		b.suite.Logger().Warnf("Not publishing artifact data to '%s' because no artifact directory was configured", destination)
+		return nil
+	}
+
+	if destination == "" {
+		return fmt.Errorf("artifact destination cannot be empty")
+	}
+
+	destPath := filepath.Join(*b.artifactDir, destination)
+	err := MkdirParents(destPath, 0o755)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(destPath, data, 0o644)
+	if err != nil {
+		return fmt.Errorf("failed to write artifact data to %s: %w", destPath, err)
 	}
 
 	return nil

@@ -144,7 +144,7 @@ func (h *HelloWorldHelper) myTestCaseWithArtifacts(tc storm.TestCase) error {
 
 	// Publish the artifact file to the directory passed with `-o` option of
 	// the `run` or `helper` commands.
-	tc.ArtifactBroker().PublishArtifact("my_artifacts", artifactFile)
+	tc.ArtifactBroker().PublishArtifact("my_artifacts/artifact1.txt", artifactFile)
 
 	// Upload the artifact to Azure DevOps if running in that context.
 	tc.ArtifactBroker().UploadArtifact("artifact1", "", artifactFile)

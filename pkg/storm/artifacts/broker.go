@@ -23,20 +23,33 @@ type ArtifactBroker interface {
 	// no-op.
 	//
 	// Inputs:
-	//   - directory: An optional sub-directory within the output directory where
-	//     the artifact will be stored. If empty, the artifact will be stored at
-	//     the root of the folder.
+	//   - destination: the relative file path (including filename) within the
+	//     output directory where the artifact will be stored.
 	//   - source: The path to the file to be published as an artifact. It may be
 	//     a relative path, but absolute paths are recommended.
 	//
-	// When an output directory is provided to the runnable, the artifact will be
-	// copied to `<output_dir>/<directory>/<filename>`, where `<filename>` is
-	// derived from the `source` path. If multiple artifacts are published with
-	// the same name, only the last one will be kept.
+	// If multiple artifacts are published with the same name, only the last one
+	// will be kept.
 	//
 	// If the path does not resolve to a file, or any other error occurs, the
 	// test will be marked as an error.
-	PublishArtifact(directory string, source string)
+	PublishArtifact(destination string, source string)
+
+	// Same as PublishArtifact but takes the artifact data as a byte slice
+	// instead of a file path. If an output directory was not provided to the
+	// runnable, this function will be a no-op.
+	//
+	// Inputs:
+	//   - destination: the relative file path (including filename) within the
+	//     output directory where the artifact will be stored.
+	//   - data: The artifact data to be written to the file.
+	//
+	// If multiple artifacts are published with the same name, only the last one
+	// will be kept.
+	//
+	// If any error occurs while writing the data to a file, the test will be
+	// marked as an error.
+	PublishArtifactData(destination string, data []byte)
 
 	// Allows test cases to publish an arbitrary artifact located at the given
 	// path to Azure DevOps Artifacts.
