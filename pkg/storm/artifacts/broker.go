@@ -68,7 +68,7 @@ type ArtifactBroker interface {
 	// marked as an error.
 	//
 	// Because the returned WriteCloser remains active until it is closed, any
-	// any calls to this function with the same destination before the previous
+	// calls to this function with the same destination before the previous
 	// WriteCloser is closed will result in an error.
 	StreamArtifactData(destination string) io.WriteCloser
 
