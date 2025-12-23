@@ -203,7 +203,7 @@ func executeTestCases(suite core.SuiteContext,
 		}
 
 		// Update progress in Azure DevOps if needed.
-		// Artificially cap progress to 95% before cleanup to leave some room
+		// Scale test execution progress to a maximum of 95% to leave some room
 		// for cleanup activities. A division by zero is impossible here since
 		// we would not be in this loop if there were no test cases.
 		if suite.AzureDevops() {
