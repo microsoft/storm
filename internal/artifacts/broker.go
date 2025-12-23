@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/microsoft/storm/pkg/storm/core"
 )
@@ -51,6 +52,7 @@ func (b *ArtifactBroker) PublishArtifact(destination string, source string) {
 	}
 }
 
+// PublishArtifactData implements storm/artifacts.ArtifactBroker.
 func (b *ArtifactBroker) PublishArtifactData(destination string, data []byte) {
 	b.checkState()
 
@@ -58,6 +60,18 @@ func (b *ArtifactBroker) PublishArtifactData(destination string, data []byte) {
 	if err != nil {
 		b.testCase.Error(fmt.Errorf("failed to publish artifact data to '%s': %w", destination, err))
 	}
+}
+
+// StreamArtifactData implements storm/artifacts.ArtifactBroker.
+func (b *ArtifactBroker) StreamArtifactData(destination string) io.WriteCloser {
+	b.checkState()
+
+	writer, err := b.manager.streamArtifact(destination)
+	if err != nil {
+		b.testCase.Error(fmt.Errorf("failed to create stream for artifact '%s': %w", destination, err))
+	}
+
+	return writer
 }
 
 // UploadArtifact implements storm/artifacts.ArtifactBroker.

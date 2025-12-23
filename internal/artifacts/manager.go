@@ -2,6 +2,8 @@ package artifacts
 
 import (
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -199,4 +201,34 @@ func (b *ArtifactManager) uploadArtifact(name string, directory string, source s
 	}
 
 	return devops.PublishArtifact(directory, name, abspath)
+}
+
+var globalOpenStreamManager openStreamManager
+
+func (b *ArtifactManager) streamArtifact(destination string) (io.WriteCloser, error) {
+	if b.artifactDir == nil {
+		b.suite.Logger().Warnf("Not streaming artifact data to '%s' because no artifact directory was configured", destination)
+		return discarder, nil
+	}
+
+	if destination == "" {
+		return nil, fmt.Errorf("artifact destination cannot be empty")
+	}
+
+	if !fs.ValidPath(destination) {
+		return nil, fmt.Errorf("artifact destination '%s' is not a valid path", destination)
+	}
+
+	destPath := filepath.Join(*b.artifactDir, destination)
+	err := MkdirParents(destPath, 0o755)
+	if err != nil {
+		return nil, err
+	}
+
+	writer, err := globalOpenStreamManager.newStream(destPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return writer, nil
 }
