@@ -41,6 +41,7 @@ func (t *fakeTestCase) Fail(reason string)                      {}
 func (t *fakeTestCase) FailFromError(err error)                 {}
 func (t *fakeTestCase) Error(err error)                         {}
 func (t *fakeTestCase) Skip(reason string)                      {}
+func (t *fakeTestCase) SkipAll(reason string)                   {}
 func (t *fakeTestCase) RunTime() time.Duration                  { return 0 }
 func (t *fakeTestCase) SuiteCleanup(f func())                   {}
 func (t *fakeTestCase) Context() context.Context                { return context.Background() }
