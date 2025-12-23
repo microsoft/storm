@@ -190,7 +190,7 @@ func (b *ArtifactManager) uploadArtifact(name string, directory string, source s
 		return fmt.Errorf("failed to get absolute path for source %s: %w", source, err)
 	}
 
-	// Check if source is a directory or a file
+	// Check that source is a regular file
 	info, err := os.Stat(abspath)
 	if err != nil {
 		return fmt.Errorf("failed to stat source %s: %w", abspath, err)
