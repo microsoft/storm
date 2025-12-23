@@ -28,16 +28,12 @@ func NewStormTestManager(
 		core.TestRegistrant
 		core.TestRegistrantMetadata
 	},
-	logDir *string,
+	artifactManager *artifacts.ArtifactManager,
 ) (*StormTestManager, error) {
 	collected, err := collector.CollectTestCases(registrant)
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect test cases: %w", err)
 	}
-
-	// Create a global artifact manager. Each test case will attach itself to
-	// this manager when it is invoked.
-	artifactManager := artifacts.NewArtifactManager(suite, logDir)
 
 	testCases := make([]*TestCase, len(collected))
 	for i, testCase := range collected {
