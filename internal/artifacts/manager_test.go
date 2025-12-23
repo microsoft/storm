@@ -182,6 +182,28 @@ func TestPublishArtifact_CopiesFile(t *testing.T) {
 	}
 }
 
+func TestPublishArtifact_RejectsPathTraversalDestination(t *testing.T) {
+	tmpDir := t.TempDir()
+	artifactDir := filepath.Join(tmpDir, "artifacts")
+	suite := &fakeSuiteContext{name: "suite"}
+	m, err := NewArtifactManager(suite, nil, &artifactDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	src := filepath.Join(tmpDir, "src.bin")
+	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+		t.Fatalf("failed to write source: %v", err)
+	}
+
+	if err := m.publishArtifact("../escape.bin", src); err == nil {
+		t.Fatalf("expected error for path traversal destination")
+	}
+	if err := m.publishArtifact("nested/../escape.bin", src); err == nil {
+		t.Fatalf("expected error for path traversal destination with nested ..")
+	}
+}
+
 func TestPublishArtifactData_WritesFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	artifactDir := filepath.Join(tmpDir, "artifacts")

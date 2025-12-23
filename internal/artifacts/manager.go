@@ -114,6 +114,10 @@ func (b *ArtifactManager) publishArtifact(destination string, source string) err
 		return fmt.Errorf("artifact destination cannot be empty")
 	}
 
+	if !fs.ValidPath(destination) {
+		return fmt.Errorf("artifact destination '%s' is not a valid path", destination)
+	}
+
 	if source == "" {
 		return fmt.Errorf("artifact source cannot be empty")
 	}
@@ -157,6 +161,10 @@ func (b *ArtifactManager) publishArtifactData(destination string, data []byte) e
 		return fmt.Errorf("artifact destination cannot be empty")
 	}
 
+	if !fs.ValidPath(destination) {
+		return fmt.Errorf("artifact destination '%s' is not a valid path", destination)
+	}
+
 	destPath := filepath.Join(*b.artifactDir, destination)
 	err := MkdirParents(destPath, 0o755)
 	if err != nil {
@@ -183,6 +191,12 @@ func (b *ArtifactManager) uploadArtifact(name string, directory string, source s
 
 	if source == "" {
 		return fmt.Errorf("artifact source cannot be empty")
+	}
+
+	if directory != "" {
+		if !fs.ValidPath(directory) {
+			return fmt.Errorf("artifact directory '%s' is not a valid path", directory)
+		}
 	}
 
 	abspath, err := filepath.Abs(source)
