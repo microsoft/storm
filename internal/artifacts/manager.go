@@ -123,7 +123,7 @@ func (b *ArtifactManager) publishArtifact(destination string, source string) err
 		return fmt.Errorf("failed to get absolute path for source %s: %w", source, err)
 	}
 
-	// Check if source is a directory or a file
+	// Verify that source is a regular file
 	info, err := os.Stat(abspath)
 	if err != nil {
 		return fmt.Errorf("failed to stat source %s: %w", abspath, err)
