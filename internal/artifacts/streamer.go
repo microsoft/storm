@@ -24,7 +24,7 @@ func (d *discardCloser) Close() error {
 // openStreamManager manages open streams for artifact writing.
 type openStreamManager struct {
 	mu      sync.Mutex
-	streams map[string]artifactStream
+	streams map[string]*artifactStream
 }
 
 func (m *openStreamManager) newStream(destination string) (*artifactStream, error) {
@@ -32,7 +32,7 @@ func (m *openStreamManager) newStream(destination string) (*artifactStream, erro
 	defer m.mu.Unlock()
 
 	if m.streams == nil {
-		m.streams = make(map[string]artifactStream)
+		m.streams = make(map[string]*artifactStream)
 	}
 
 	if _, exists := m.streams[destination]; exists {
@@ -44,14 +44,15 @@ func (m *openStreamManager) newStream(destination string) (*artifactStream, erro
 		return nil, fmt.Errorf("failed to create artifact file '%s': %w", destination, err)
 	}
 
-	stream := artifactStream{
-		file:    *file,
-		manager: m,
+	stream := &artifactStream{
+		destination: destination,
+		file:        file,
+		manager:     m,
 	}
 
 	m.streams[destination] = stream
 
-	return &stream, nil
+	return stream, nil
 }
 
 func (m *openStreamManager) closeStream(destination string) {
@@ -68,7 +69,7 @@ func (m *openStreamManager) closeStream(destination string) {
 
 type artifactStream struct {
 	destination string
-	file        os.File
+	file        *os.File
 	manager     *openStreamManager
 }
 
