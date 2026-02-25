@@ -7,8 +7,9 @@ import (
 )
 
 type runnerError struct {
-	err      error
-	metadata core.TestRegistrantMetadata
+	err             error
+	metadata        core.TestRegistrantMetadata
+	collectedOutput []string
 }
 
 func (be *runnerError) Error() string {
@@ -24,11 +25,12 @@ type setupError struct {
 	runnerError
 }
 
-func newSetupError(metadata core.TestRegistrantMetadata, err error) *setupError {
+func newSetupError(metadata core.TestRegistrantMetadata, err error, collectedOutput []string) *setupError {
 	return &setupError{
 		runnerError: runnerError{
-			err:      err,
-			metadata: metadata,
+			err:             err,
+			metadata:        metadata,
+			collectedOutput: collectedOutput,
 		},
 	}
 }
@@ -46,11 +48,12 @@ type cleanupError struct {
 	runnerError
 }
 
-func newCleanupError(metadata core.TestRegistrantMetadata, err error) error {
+func newCleanupError(metadata core.TestRegistrantMetadata, err error, collectedOutput []string) error {
 	return &cleanupError{
 		runnerError: runnerError{
-			err:      err,
-			metadata: metadata,
+			err:             err,
+			metadata:        metadata,
+			collectedOutput: collectedOutput,
 		},
 	}
 }
