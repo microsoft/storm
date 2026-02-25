@@ -161,6 +161,13 @@ func executeTestCases(suite core.SuiteContext,
 
 	totalTestCases := len(testManager.TestCases())
 	for i, testCase := range testManager.TestCases() {
+		// If the suite context has been cancelled, we should skip running any
+		// remaining test cases.
+		if suite.Context().Err() != nil {
+			testCase.MarkNotRun("suite cancelled")
+			continue
+		}
+
 		// If bail is true, we are no longer running tests. Mark this test case
 		// as not run and 'continue' to iterate over all remaining test cases to
 		// mark them as not run.
