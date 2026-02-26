@@ -34,6 +34,7 @@ func RegisterAndRunTests(suite core.SuiteContext,
 	},
 	args []string,
 	watch bool,
+	pauseCleanup bool,
 	logDir *string,
 	junitPath *string,
 	artifactDir *string,
@@ -80,7 +81,7 @@ func RegisterAndRunTests(suite core.SuiteContext,
 	}
 
 	// Actually run the thing
-	err = executeTestCases(suite, registrantInstance, testMgr, watch)
+	err = executeTestCases(suite, registrantInstance, testMgr, watch, pauseCleanup)
 	testMgr.StopTimer()
 	if err != nil {
 		switch err.(type) {
@@ -126,6 +127,7 @@ func executeTestCases(suite core.SuiteContext,
 	runnable *runnableInstance,
 	testManager *testmgr.StormTestManager,
 	watch bool,
+	pauseCleanup bool,
 ) error {
 
 	ctx := &runnableContext{
@@ -229,6 +231,11 @@ func executeTestCases(suite core.SuiteContext,
 		if suite.AzureDevops() {
 			devops.SetProgress(0.95 * float64(i+1) / float64(totalTestCases))
 		}
+	}
+
+	if pauseCleanup {
+		suite.Logger().Warn("Waiting for external signal before cleanup...")
+		<-suite.Context().Done()
 	}
 
 	// If we have any cleanup functions, run them in reverse order.
