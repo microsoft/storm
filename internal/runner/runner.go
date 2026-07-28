@@ -165,6 +165,24 @@ func executeTestCases(suite core.SuiteContext,
 		// the test case, but it is better than nothing.
 		var startGoroutines = runtime.NumGoroutine()
 
+		// When running under Azure DevOps, wrap each test case's live-streamed
+		// output in a collapsible group so the raw pipeline log is easy to
+		// navigate. The group header is emitted to the real stdout before the
+		// case's output begins streaming, and the group is closed
+		// unconditionally once the case finishes below, regardless of whether
+		// it passed, failed, was skipped, panicked or called runtime.Goexit().
+		//
+		// This is gated on AzureDevops() only (not the -w watch flag) so that
+		// non-ADO live output stays free of stray group markers. Any
+		// ##[group]/##[endgroup] markers emitted by the product-under-test
+		// within the case output are neutralized by the "  ├ " line prefix
+		// added by the forward function below, so they cannot create nested
+		// groups (which ADO does not support).
+		var liveGroup *devops.Group
+		if suite.AzureDevops() {
+			liveGroup = devops.OpenGroup(testCase.Name())
+		}
+
 		// Call the captureOutput function to run the test case and capture its
 		// output. We also forward the output to the console if we are running
 		// in watch mode or in Azure DevOps.
@@ -175,6 +193,14 @@ func executeTestCases(suite core.SuiteContext,
 				fmt.Fprintf(w, "  ├ %s\n", s)
 			}
 		})
+
+		// Close the live output group for this test case, if one was opened.
+		// captureOutput has already restored the real stdout/stderr by this
+		// point, so the ##[endgroup] marker lands on the real stdout right
+		// after the case's streamed output.
+		if liveGroup != nil {
+			liveGroup.Close()
+		}
 
 		// Calculate the difference in goroutine count.
 		delta := runtime.NumGoroutine() - startGoroutines
