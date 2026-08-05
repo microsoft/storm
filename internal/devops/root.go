@@ -18,3 +18,12 @@ var realStdOut io.Writer = os.Stdout
 func Stdout() io.Writer {
 	return realStdOut
 }
+
+// SetStdout overrides the writer returned by Stdout and used for all Azure
+// DevOps logging commands, returning a function that restores the previous
+// writer. It is intended for tests that need to capture Azure DevOps output.
+func SetStdout(w io.Writer) (restore func()) {
+	prev := realStdOut
+	realStdOut = w
+	return func() { realStdOut = prev }
+}

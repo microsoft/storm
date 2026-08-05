@@ -157,14 +157,17 @@ func executeTestCases(suite core.SuiteContext,
 	// so the "(started)" and status lines sit OUTSIDE the collapsible group
 	// and correctly bracket it. The agent parses logging commands from both
 	// stdout and stderr and orders lines by arrival across the two streams, so
-	// mixing streams here would race and misplace the markers/boundary lines
-	// (they would fall inside the wrong group). To make ordering deterministic
+	// splitting the markers/boundary lines across streams would race and
+	// misplace them (they could fall inside the wrong group). To prevent that
 	// we route ALL of a case's live output - the boundary lines, the group
 	// markers, and every streamed line (from both the case's stdout and its
-	// stderr/logrus) - onto the single shared devops.Stdout() stream, in
-	// program order. Outside Azure DevOps behaviour is unchanged: boundary
-	// lines go through the suite logger (stderr) and no group markers are
-	// emitted.
+	// stderr/logrus) - onto the single shared devops.Stdout() stream. This
+	// guarantees the group markers and boundary lines are correctly ordered
+	// relative to the streamed output; it does NOT impose an order between
+	// individual stdout and stderr lines within a case, which remain
+	// interleaved as captureOutput's two reader goroutines observe them.
+	// Outside Azure DevOps behaviour is unchanged: boundary lines go through
+	// the suite logger (stderr) and no group markers are emitted.
 	ado := suite.AzureDevops()
 
 	totalTestCases := len(testManager.TestCases())
@@ -209,18 +212,27 @@ func executeTestCases(suite core.SuiteContext,
 		// Call the captureOutput function to run the test case and capture its
 		// output. We also forward the output to the console if we are running
 		// in watch mode or in Azure DevOps.
+		//
+		// captureOutput invokes the forward function from two goroutines (the
+		// stdout and stderr readers). Under Azure DevOps both are directed at
+		// the same devops.Stdout() writer, so a mutex serializes the writes to
+		// keep each forwarded line atomic and prevent byte-level interleaving.
+		var forwardMu sync.Mutex
 		captured, err := captureOutput(func() {
 			executeTestCase(testCase)
 		}, func(w io.Writer, s string) {
 			// Under Azure DevOps, force every streamed line onto the single
 			// shared stdout stream (ignoring w, which distinguishes the case's
-			// stdout from its stderr) so nothing interleaves across streams and
-			// lands in the wrong group. captureOutput joins its reader
-			// goroutines before returning, so all of these writes complete
-			// before the ##[endgroup] below. Outside ADO, preserve the original
-			// stream and only forward when watching live.
+			// stdout from its stderr) so the group markers and boundary lines
+			// stay correctly ordered relative to the streamed output.
+			// captureOutput joins its reader goroutines before returning, so
+			// all of these writes complete before the ##[endgroup] below.
+			// Outside ADO, preserve the original stream and only forward when
+			// watching live.
 			if ado {
+				forwardMu.Lock()
 				fmt.Fprintf(devops.Stdout(), "  ├ %s\n", s)
+				forwardMu.Unlock()
 			} else if watch {
 				fmt.Fprintf(w, "  ├ %s\n", s)
 			}
