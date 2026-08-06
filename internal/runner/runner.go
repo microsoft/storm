@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/microsoft/storm/internal/artifacts"
@@ -242,8 +243,9 @@ func executeTestCases(suite core.SuiteContext,
 	slices.Reverse(cleanupFuncs)
 	for i, f := range cleanupFuncs {
 		suite.Logger().Infof("Running cleanup function (%d/%d)", i+1, len(cleanupFuncs))
-		_, err := captureOutput(func() {
-			runCatchPanic(func() error {
+		var cleanupPanic error
+		captured, err := captureOutput(func() {
+			cleanupPanic = runCatchPanic(func() error {
 				f()
 				return nil
 			})
@@ -255,6 +257,16 @@ func executeTestCases(suite core.SuiteContext,
 
 		if err != nil {
 			suite.Logger().WithError(err).Error("Failed to capture output for cleanup function")
+		}
+
+		// A cleanup function panic is otherwise swallowed by runCatchPanic;
+		// surface both the panic and the output it produced (which is hidden in
+		// the default run mode) so the failure is diagnosable.
+		if cleanupPanic != nil {
+			suite.Logger().WithError(cleanupPanic).Error("Cleanup function panicked")
+			if len(captured) > 0 {
+				suite.Logger().Errorf("Cleanup function output:\n%s", strings.Join(captured, "\n"))
+			}
 		}
 	}
 
