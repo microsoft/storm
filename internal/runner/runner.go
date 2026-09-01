@@ -146,6 +146,30 @@ func executeTestCases(suite core.SuiteContext,
 
 	bail := false
 
+	// When running under Azure DevOps we render each test case as:
+	//
+	//     <name> (started)
+	//     ##[group]<name>
+	//       ├ ...streamed case output...
+	//     ##[endgroup]
+	//     <name> <STATUS>
+	//
+	// so the "(started)" and status lines sit OUTSIDE the collapsible group
+	// and correctly bracket it. The agent parses logging commands from both
+	// stdout and stderr and orders lines by arrival across the two streams, so
+	// splitting the markers/boundary lines across streams would race and
+	// misplace them (they could fall inside the wrong group). To prevent that
+	// we route ALL of a case's live output - the boundary lines, the group
+	// markers, and every streamed line (from both the case's stdout and its
+	// stderr/logrus) - onto the single shared devops.Stdout() stream. This
+	// guarantees the group markers and boundary lines are correctly ordered
+	// relative to the streamed output; it does NOT impose an order between
+	// individual stdout and stderr lines within a case, which remain
+	// interleaved as captureOutput's two reader goroutines observe them.
+	// Outside Azure DevOps behaviour is unchanged: boundary lines go through
+	// the suite logger (stderr) and no group markers are emitted.
+	ado := suite.AzureDevops()
+
 	totalTestCases := len(testManager.TestCases())
 	for i, testCase := range testManager.TestCases() {
 		// If bail is true, we are no longer running tests. Mark this test case
@@ -156,7 +180,14 @@ func executeTestCases(suite core.SuiteContext,
 			continue
 		}
 
-		suite.Logger().Infof("%s (started)", testCase.Name())
+		// Emit the "(started)" boundary line. Under Azure DevOps it goes to the
+		// shared stream (see above) so it renders immediately before, and
+		// outside, the collapsible group.
+		if ado {
+			fmt.Fprintf(devops.Stdout(), "%s (started)\n", testCase.Name())
+		} else {
+			suite.Logger().Infof("%s (started)", testCase.Name())
+		}
 
 		// Capture the number of goroutines before running the test case.
 		// After the test case has run, we compare the number of goroutines to
@@ -165,16 +196,55 @@ func executeTestCases(suite core.SuiteContext,
 		// the test case, but it is better than nothing.
 		var startGoroutines = runtime.NumGoroutine()
 
+		// Open the collapsible group for this case's live output. The group is
+		// closed unconditionally once the case finishes below, regardless of
+		// whether it passed, failed, was skipped, panicked or called
+		// runtime.Goexit() (captureOutput always returns). Any
+		// ##[group]/##[endgroup] markers emitted by the product-under-test
+		// within the case output are neutralized by the "  ├ " line prefix
+		// added by the forward function below, so they cannot create nested
+		// groups (which ADO does not support).
+		var liveGroup *devops.Group
+		if ado {
+			liveGroup = devops.OpenGroup(testCase.Name())
+		}
+
 		// Call the captureOutput function to run the test case and capture its
 		// output. We also forward the output to the console if we are running
 		// in watch mode or in Azure DevOps.
+		//
+		// captureOutput invokes the forward function from two goroutines (the
+		// stdout and stderr readers). Under Azure DevOps both are directed at
+		// the same devops.Stdout() writer, so a mutex serializes the writes to
+		// keep each forwarded line atomic and prevent byte-level interleaving.
+		var forwardMu sync.Mutex
 		captured, err := captureOutput(func() {
 			executeTestCase(testCase)
 		}, func(w io.Writer, s string) {
-			if suite.AzureDevops() || watch {
+			// Under Azure DevOps, force every streamed line onto the single
+			// shared stdout stream (ignoring w, which distinguishes the case's
+			// stdout from its stderr) so the group markers and boundary lines
+			// stay correctly ordered relative to the streamed output.
+			// captureOutput joins its reader goroutines before returning, so
+			// all of these writes complete before the ##[endgroup] below.
+			// Outside ADO, preserve the original stream and only forward when
+			// watching live.
+			if ado {
+				forwardMu.Lock()
+				fmt.Fprintf(devops.Stdout(), "  ├ %s\n", s)
+				forwardMu.Unlock()
+			} else if watch {
 				fmt.Fprintf(w, "  ├ %s\n", s)
 			}
 		})
+
+		// Close the live output group for this test case, if one was opened.
+		// captureOutput has already restored the real stdout/stderr and joined
+		// its reader goroutines by this point, so the ##[endgroup] marker lands
+		// on the shared stream right after the case's streamed output.
+		if liveGroup != nil {
+			liveGroup.Close()
+		}
 
 		// Calculate the difference in goroutine count.
 		delta := runtime.NumGoroutine() - startGoroutines
@@ -194,19 +264,32 @@ func executeTestCases(suite core.SuiteContext,
 		// Check if the test case caused a bail condition.
 		bail = testCase.IsBailCondition()
 
-		// Output the test case status.
-		suite.Logger().Infof("%s %s", testCase.Name(), testCase.Status().ColorString())
+		// Output the test case status boundary line. Under Azure DevOps it goes
+		// to the shared stream so it renders immediately after, and outside,
+		// the collapsible group.
+		if ado {
+			fmt.Fprintf(devops.Stdout(), "%s %s\n", testCase.Name(), testCase.Status().ColorString())
+		} else {
+			suite.Logger().Infof("%s %s", testCase.Name(), testCase.Status().ColorString())
+		}
 
-		// Print a warning if we suspect the test case has leaked goroutines.
+		// Print a warning if we suspect the test case has leaked goroutines. In
+		// ADO this is routed to the shared stream too so it stays ordered
+		// relative to the boundary lines above.
 		if delta > 0 {
-			suite.Logger().Warnf("Test case %s has leaked goroutines: ended with %d more goroutine(s) than expected", testCase.Name(), delta)
+			leakMsg := fmt.Sprintf("Test case %s has leaked goroutines: ended with %d more goroutine(s) than expected", testCase.Name(), delta)
+			if ado {
+				fmt.Fprintf(devops.Stdout(), "%s\n", leakMsg)
+			} else {
+				suite.Logger().Warn(leakMsg)
+			}
 		}
 
 		// Update progress in Azure DevOps if needed.
 		// Scale test execution progress to a maximum of 95% to leave some room
 		// for cleanup activities. A division by zero is impossible here since
 		// we would not be in this loop if there were no test cases.
-		if suite.AzureDevops() {
+		if ado {
 			devops.SetProgress(0.95 * float64(i+1) / float64(totalTestCases))
 		}
 	}
