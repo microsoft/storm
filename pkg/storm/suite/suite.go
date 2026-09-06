@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"reflect"
 	"runtime"
 	"slices"
+	"syscall"
 
+	"github.com/fatih/color"
 	"github.com/microsoft/storm/internal/cli"
 	"github.com/microsoft/storm/internal/collector"
 	"github.com/microsoft/storm/pkg/storm/core"
@@ -44,6 +47,20 @@ func CreateSuite(name string) StormSuite {
 	logger.Infof("Creating suite '%s'", name)
 
 	ctx, cancel := context.WithCancel(context.Background())
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		select {
+		case <-sigCh:
+			logger.Out.Write([]byte("\n\n" + color.YellowString("==== ⚠️  RECEIVED SHUTDOWN SIGNAL, CANCELLING SUITE. ⚠️  ====") + "\n\n"))
+			cancel()
+		case <-ctx.Done():
+			// Context was cancelled programmatically, not by a signal.
+		}
+		signal.Stop(sigCh)
+	}()
 
 	return StormSuite{
 		name:      name,

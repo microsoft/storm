@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/microsoft/storm/internal/artifacts"
@@ -34,6 +35,7 @@ func RegisterAndRunTests(suite core.SuiteContext,
 	},
 	args []string,
 	watch bool,
+	pauseCleanup bool,
 	logDir *string,
 	junitPath *string,
 	artifactDir *string,
@@ -80,7 +82,7 @@ func RegisterAndRunTests(suite core.SuiteContext,
 	}
 
 	// Actually run the thing
-	err = executeTestCases(suite, registrantInstance, testMgr, watch)
+	err = executeTestCases(suite, registrantInstance, testMgr, watch, pauseCleanup)
 	testMgr.StopTimer()
 	if err != nil {
 		switch err.(type) {
@@ -126,6 +128,7 @@ func executeTestCases(suite core.SuiteContext,
 	runnable *runnableInstance,
 	testManager *testmgr.StormTestManager,
 	watch bool,
+	pauseCleanup bool,
 ) error {
 
 	ctx := &runnableContext{
@@ -136,9 +139,22 @@ func executeTestCases(suite core.SuiteContext,
 	// If the runnable implements the SetupCleanup interface, we call
 	// the setup method before running the tests.
 	if r, ok := runnable.TestRegistrant.(core.SetupCleanup); ok {
-		err := runCatchPanic(func() error { return r.Setup(ctx) })
-		if err != nil {
-			return newSetupError(runnable, err)
+		suite.Logger().Info("Running Setup() Hook")
+		var setupErr error
+		captured, captureErr := captureOutput(func() {
+			setupErr = runCatchPanic(func() error { return r.Setup(ctx) })
+		}, func(w io.Writer, s string) {
+			if suite.AzureDevops() || watch {
+				fmt.Fprintf(w, "  ├ %s\n", s)
+			}
+		})
+
+		if captureErr != nil {
+			return fmt.Errorf("failed to capture output for Setup(): %w", captureErr)
+		}
+
+		if setupErr != nil {
+			return newSetupError(runnable, setupErr, captured)
 		}
 	}
 
@@ -148,6 +164,13 @@ func executeTestCases(suite core.SuiteContext,
 
 	totalTestCases := len(testManager.TestCases())
 	for i, testCase := range testManager.TestCases() {
+		// If the suite context has been cancelled, we should skip running any
+		// remaining test cases.
+		if suite.Context().Err() != nil {
+			testCase.MarkNotRun("suite cancelled")
+			continue
+		}
+
 		// If bail is true, we are no longer running tests. Mark this test case
 		// as not run and 'continue' to iterate over all remaining test cases to
 		// mark them as not run.
@@ -211,21 +234,61 @@ func executeTestCases(suite core.SuiteContext,
 		}
 	}
 
+	if pauseCleanup {
+		suite.Logger().Warn("Waiting for external signal before cleanup...")
+		<-suite.Context().Done()
+	}
+
 	// If we have any cleanup functions, run them in reverse order.
 	slices.Reverse(cleanupFuncs)
-	for _, f := range cleanupFuncs {
-		runCatchPanic(func() error {
-			f()
-			return nil
+	for i, f := range cleanupFuncs {
+		suite.Logger().Infof("Running cleanup function (%d/%d)", i+1, len(cleanupFuncs))
+		var cleanupPanic error
+		captured, err := captureOutput(func() {
+			cleanupPanic = runCatchPanic(func() error {
+				f()
+				return nil
+			})
+		}, func(w io.Writer, s string) {
+			if suite.AzureDevops() || watch {
+				fmt.Fprintf(w, "  ├ %s\n", s)
+			}
 		})
+
+		if err != nil {
+			suite.Logger().WithError(err).Error("Failed to capture output for cleanup function")
+		}
+
+		// A cleanup function panic is otherwise swallowed by runCatchPanic;
+		// surface both the panic and the output it produced (which is hidden in
+		// the default run mode) so the failure is diagnosable.
+		if cleanupPanic != nil {
+			suite.Logger().WithError(cleanupPanic).Error("Cleanup function panicked")
+			if len(captured) > 0 {
+				suite.Logger().Errorf("Cleanup function output:\n%s", strings.Join(captured, "\n"))
+			}
+		}
 	}
 
 	// If the runnable implements the SetupCleanup interface, we call
 	// the Cleanup method after running the tests.
 	if r, ok := runnable.TestRegistrant.(core.SetupCleanup); ok {
-		err := runCatchPanic(func() error { return r.Cleanup(ctx) })
-		if err != nil {
-			return newCleanupError(runnable, err)
+		suite.Logger().Info("Running Cleanup() Hook")
+		var cleanupErr error
+		captured, captureErr := captureOutput(func() {
+			cleanupErr = runCatchPanic(func() error { return r.Cleanup(ctx) })
+		}, func(w io.Writer, s string) {
+			if suite.AzureDevops() || watch {
+				fmt.Fprintf(w, "  ├ %s\n", s)
+			}
+		})
+
+		if captureErr != nil {
+			return fmt.Errorf("failed to capture output for Cleanup(): %w", captureErr)
+		}
+
+		if cleanupErr != nil {
+			return newCleanupError(runnable, cleanupErr, captured)
 		}
 	}
 
