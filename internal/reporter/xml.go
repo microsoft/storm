@@ -11,9 +11,18 @@ import "strings"
 // feed (#xA) and carriage return (#xD), which are the bytes commonly emitted by
 // serial consoles and similar raw output sources.
 func isValidXMLChar(r rune) bool {
-	return r == 0x09 || r == 0x0A || r == 0x0D ||
+	return r == 0x09 || // tab
+		r == 0x0A || // line feed (\n)
+		r == 0x0D || // carriage return (\r)
+		// Printable/graphical range: from space (0x20) up to the end of the
+		// Basic Multilingual Plane, stopping just before the UTF-16 surrogate
+		// halves (0xD800-0xDFFF), which are not valid standalone characters.
 		(r >= 0x20 && r <= 0xD7FF) ||
+		// Rest of the BMP above the surrogate block, stopping before the two
+		// permanently-reserved noncharacters 0xFFFE and 0xFFFF.
 		(r >= 0xE000 && r <= 0xFFFD) ||
+		// Supplementary planes: every code point above the BMP, up to the
+		// highest valid Unicode code point (0x10FFFF).
 		(r >= 0x10000 && r <= 0x10FFFF)
 }
 
