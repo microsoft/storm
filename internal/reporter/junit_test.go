@@ -6,6 +6,7 @@ import (
 	"encoding/xml"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -89,8 +90,12 @@ func TestProduceJUnitXMLSanitizesAndSetsClassname(t *testing.T) {
 	}
 
 	for _, c := range tm.TestCases() {
-		// Inject raw console-style output containing a NUL byte.
-		c.SetCollectedOutput([]string{"console output with \x00 NUL and \x07 bell"})
+		// Inject raw console-style output containing a NUL byte, other C0
+		// control bytes, and a literal "]]>" CDATA terminator. The terminator
+		// is made of legal XML characters, so sanitizeXMLText keeps it; we rely
+		// on encoding/xml's ,cdata marshaling to split it safely (verified by
+		// the well-formedness + round-trip assertions below).
+		c.SetCollectedOutput([]string{"console output with \x00 NUL, \x07 bell and a ]]> terminator, then more"})
 		runCase(c)
 	}
 
@@ -113,10 +118,12 @@ func TestProduceJUnitXMLSanitizesAndSetsClassname(t *testing.T) {
 	}
 
 	// 2. The document must be well-formed XML 1.0 (encoding/xml rejects
-	//    illegal control characters, so this fails on unsanitized output).
+	//    illegal control characters and an unescaped "]]>" CDATA terminator,
+	//    so this fails on unsanitized/unsplit output).
 	type tcase struct {
 		Name      string `xml:"name,attr"`
 		Classname string `xml:"classname,attr"`
+		SystemOut string `xml:"system-out"`
 	}
 	var parsed struct {
 		Cases []tcase `xml:"testsuite>testcase"`
@@ -132,6 +139,12 @@ func TestProduceJUnitXMLSanitizesAndSetsClassname(t *testing.T) {
 	for _, c := range parsed.Cases {
 		if c.Classname != "myscenario" {
 			t.Errorf("testcase %q: expected classname 'myscenario', got %q", c.Name, c.Classname)
+		}
+		// 4. The "]]>" terminator must survive round-trip in system-out,
+		//    proving it was safely escaped rather than dropped or breaking the
+		//    document.
+		if c.SystemOut != "" && !strings.Contains(c.SystemOut, "]]>") {
+			t.Errorf("testcase %q: expected system-out to preserve ']]>' after round-trip, got %q", c.Name, c.SystemOut)
 		}
 	}
 }
