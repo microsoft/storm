@@ -31,10 +31,15 @@ func (tr *TestReporter) ProduceJUnitXML(filename string) error {
 	}
 
 	for _, testCase := range tr.testManager.TestCases() {
-		// Fill in basic properties
+		// Fill in basic properties. Classname is populated with the enclosing
+		// registrant (scenario/helper) name: consumers such as Azure DevOps key
+		// test identity on classname + name, so an empty classname causes
+		// identically-named cases from different registrants/runtimes to be
+		// merged and their per-registrant results lost.
 		tc := junit.Testcase{
-			Name:   testCase.Name(),
-			Status: testCase.Status().String(),
+			Name:      testCase.Name(),
+			Classname: tr.testManager.Registrant().Name(),
+			Status:    testCase.Status().String(),
 		}
 
 		// These properties only make sense if the test was actually run,
@@ -42,7 +47,7 @@ func (tr *TestReporter) ProduceJUnitXML(filename string) error {
 		if testCase.Status().Ran() {
 			tc.Time = toSecondsStr(testCase.RunTime())
 			tc.SystemOut = &junit.Output{
-				Data: utils.RemoveAllANSI(strings.Join(testCase.CollectedOutput(), "\n")),
+				Data: sanitizeXMLText(utils.RemoveAllANSI(strings.Join(testCase.CollectedOutput(), "\n"))),
 			}
 		}
 
@@ -67,16 +72,16 @@ func (tr *TestReporter) ProduceJUnitXML(filename string) error {
 			}
 		case testmgr.TestCaseStatusSkipped:
 			tc.Skipped = &junit.Result{
-				Message: testCase.Reason(),
+				Message: sanitizeXMLText(testCase.Reason()),
 				Type:    "Skipped",
 			}
 		case testmgr.TestCaseStatusFailed:
 			tc.Failure = &junit.Result{
-				Message: testCase.Reason(),
+				Message: sanitizeXMLText(testCase.Reason()),
 			}
 		case testmgr.TestCaseStatusError:
 			tc.Error = &junit.Result{
-				Message: testCase.Reason(),
+				Message: sanitizeXMLText(testCase.Reason()),
 			}
 		case testmgr.TestCaseStatusPassed:
 			// No action needed
