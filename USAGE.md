@@ -136,6 +136,17 @@ func (s MyScenario) RegisterTestCases(r storm.TestRegistrar) error {
 By default, storm will capture stdout, stderr and logrus. Test suites are
 encouraged to use these facilities.
 
+> **Note:** Because storm captures a test case's stdout/stderr and re-emits it
+> indented (prefixed with `  ├ ` when streaming live, and further indented in
+> the failure report), output written from *inside a test case* does not reach
+> the terminal at column 0. Azure DevOps only parses `##vso[...]`/`##[...]`
+> logging commands that start at column 0, so emitting them from within a test
+> case will not work — the captured line is indented before it reaches the
+> agent. If you need to emit raw logging commands, do it from a script (script
+> sets registered via `AddScriptSet` run through the CLI outside the capture
+> path) or rely on storm's built-in Azure DevOps integration, whose commands
+> are emitted directly at column 0.
+
 ## Test Cases
 
 Test cases MUST have unique names within each scenario or helper, and ideally
