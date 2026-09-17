@@ -138,11 +138,14 @@ encouraged to use these facilities.
 
 > **Note:** Because storm captures a test case's stdout/stderr and re-emits it
 > indented (prefixed with `  ├ ` when streaming live, and further indented in
-> the failure report), output written from *inside a test case* does not reach
-> the terminal at column 0. Azure DevOps only parses `##vso[...]`/`##[...]`
-> logging commands that start at column 0, so emitting them from within a test
-> case will not work — the captured line is indented before it reaches the
-> agent. If you need to emit raw logging commands, do it from a script (script
+> the failure report), output written from *inside a test case or helper* does
+> not reach the terminal at column 0. Azure DevOps only parses
+> `##vso[...]`/`##[...]` logging commands that start at column 0, so emitting
+> them from within a test case will not work: the indented command is silently
+> treated as ordinary output — no error is raised and no warning is logged, so
+> a downstream step simply sees the effect (e.g. a `setvariable`) never happen.
+> Helpers run through the same capture path as scenarios; only scripts are
+> exempt. If you need to emit raw logging commands, do it from a script (script
 > sets registered via `AddScriptSet` run through the CLI outside the capture
 > path) or rely on storm's built-in Azure DevOps integration, whose commands
 > are emitted directly at column 0.
