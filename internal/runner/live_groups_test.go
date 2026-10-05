@@ -55,7 +55,7 @@ func TestExecuteTestCasesAzureDevopsGrouping(t *testing.T) {
 		t.Fatalf("failed to create test manager: %v", err)
 	}
 
-	if err := executeTestCases(suite, registrant, testMgr, false, false); err != nil {
+	if err := executeTestCases(suite, registrant, testMgr, artifactManager, false, false); err != nil {
 		t.Fatalf("executeTestCases returned error: %v", err)
 	}
 
@@ -127,7 +127,7 @@ func TestExecuteTestCasesNonAzureDevopsNoMarkers(t *testing.T) {
 		t.Fatalf("failed to create test manager: %v", err)
 	}
 
-	if err := executeTestCases(suite, registrant, testMgr, false, false); err != nil {
+	if err := executeTestCases(suite, registrant, testMgr, artifactManager, false, false); err != nil {
 		t.Fatalf("executeTestCases returned error: %v", err)
 	}
 

@@ -13,10 +13,33 @@ type ArtifactBroker struct {
 
 	// The test case this broker is attached to.
 	testCase core.TestCase
+
+	// Optional strategy for reporting publish errors. When nil, errors are
+	// reported through testCase.Error(). The OnFailure hook sets this to a
+	// logging strategy because its failed test case is already closed, so
+	// calling testCase.Error() on it would panic.
+	reportErr func(error)
 }
 
 func (b *ArtifactBroker) AttachTestCase(tc core.TestCase) {
 	b.testCase = tc
+}
+
+// SetErrorReporter overrides how the broker reports publish errors. It is used
+// for brokers (such as the OnFailure hook's) that are attached to an
+// already-closed test case, where testCase.Error() must not be called.
+func (b *ArtifactBroker) SetErrorReporter(fn func(error)) {
+	b.reportErr = fn
+}
+
+// reportError reports a publish error via the configured strategy, defaulting
+// to testCase.Error() when none is set.
+func (b *ArtifactBroker) reportError(err error) {
+	if b.reportErr != nil {
+		b.reportErr(err)
+		return
+	}
+	b.testCase.Error(err)
 }
 
 func (b *ArtifactBroker) checkState() {
@@ -38,7 +61,7 @@ func (b *ArtifactBroker) PublishLogFile(name string, source string) {
 
 	err := b.manager.publishLogFile(b.testCase, name, source)
 	if err != nil {
-		b.testCase.Error(fmt.Errorf("failed to publish log file '%s' from path '%s': %w", name, source, err))
+		b.reportError(fmt.Errorf("failed to publish log file '%s' from path '%s': %w", name, source, err))
 	}
 }
 
@@ -48,7 +71,7 @@ func (b *ArtifactBroker) PublishArtifact(destination string, source string) {
 
 	err := b.manager.publishArtifact(destination, source)
 	if err != nil {
-		b.testCase.Error(fmt.Errorf("failed to publish artifact from path '%s' to output directory: %w", source, err))
+		b.reportError(fmt.Errorf("failed to publish artifact from path '%s' to output directory: %w", source, err))
 	}
 }
 
@@ -58,7 +81,7 @@ func (b *ArtifactBroker) PublishArtifactData(destination string, data []byte) {
 
 	err := b.manager.publishArtifactData(destination, data)
 	if err != nil {
-		b.testCase.Error(fmt.Errorf("failed to publish artifact data to '%s': %w", destination, err))
+		b.reportError(fmt.Errorf("failed to publish artifact data to '%s': %w", destination, err))
 	}
 }
 
@@ -68,7 +91,7 @@ func (b *ArtifactBroker) StreamArtifactData(destination string) io.WriteCloser {
 
 	writer, err := b.manager.streamArtifact(destination)
 	if err != nil {
-		b.testCase.Error(fmt.Errorf("failed to create stream for artifact '%s': %w", destination, err))
+		b.reportError(fmt.Errorf("failed to create stream for artifact '%s': %w", destination, err))
 	}
 
 	return writer
@@ -80,6 +103,6 @@ func (b *ArtifactBroker) UploadArtifact(name string, directory string, source st
 
 	err := b.manager.uploadArtifact(name, directory, source)
 	if err != nil {
-		b.testCase.Error(fmt.Errorf("failed to upload artifact '%s' from path '%s': %w", name, source, err))
+		b.reportError(fmt.Errorf("failed to upload artifact '%s' from path '%s': %w", name, source, err))
 	}
 }
