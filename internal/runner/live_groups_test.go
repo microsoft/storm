@@ -2,7 +2,6 @@ package runner
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -16,28 +15,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// fakeSuite is a minimal core.SuiteContext for exercising executeTestCases.
-type fakeSuite struct {
-	log *logrus.Logger
-	ado bool
-}
-
-func (s *fakeSuite) Name() string                  { return "storm-test" }
-func (s *fakeSuite) Logger() *logrus.Logger        { return s.log }
-func (s *fakeSuite) Scenarios() []core.Scenario    { return nil }
-func (s *fakeSuite) Scenario(string) core.Scenario { return nil }
-func (s *fakeSuite) Helpers() []core.Helper        { return nil }
-func (s *fakeSuite) Helper(string) core.Helper     { return nil }
-func (s *fakeSuite) AzureDevops() bool             { return s.ado }
-func (s *fakeSuite) Context() context.Context      { return context.Background() }
-
-// fakeHelper is a minimal core.Helper with a single passing test case that
+// outputHelper is a minimal core.Helper with a single passing test case that
 // emits a line of output.
-type fakeHelper struct{}
+type outputHelper struct{}
 
-func (h *fakeHelper) Name() string { return "hw" }
-func (h *fakeHelper) Args() any    { return nil }
-func (h *fakeHelper) RegisterTestCases(r core.TestRegistrar) error {
+func (h *outputHelper) Name() string { return "hw" }
+func (h *outputHelper) Args() any    { return nil }
+func (h *outputHelper) RegisterTestCases(r core.TestRegistrar) error {
 	r.RegisterTestCase("myPassingTestCase", func(tc core.TestCase) error {
 		fmt.Println("hello from the case")
 		return nil
@@ -58,7 +42,7 @@ func TestExecuteTestCasesAzureDevopsGrouping(t *testing.T) {
 	logger.SetOutput(&bytes.Buffer{}) // keep suite logger noise out of the test output
 	suite := &fakeSuite{log: logger, ado: true}
 
-	helper := &fakeHelper{}
+	helper := &outputHelper{}
 	registrant := &runnableInstance{Argumented: helper, TestRegistrant: helper}
 
 	artifactManager, err := artifacts.NewArtifactManager(suite, nil, nil)
@@ -71,7 +55,7 @@ func TestExecuteTestCasesAzureDevopsGrouping(t *testing.T) {
 		t.Fatalf("failed to create test manager: %v", err)
 	}
 
-	if err := executeTestCases(suite, registrant, testMgr, false); err != nil {
+	if err := executeTestCases(suite, registrant, testMgr, false, false); err != nil {
 		t.Fatalf("executeTestCases returned error: %v", err)
 	}
 
@@ -131,7 +115,7 @@ func TestExecuteTestCasesNonAzureDevopsNoMarkers(t *testing.T) {
 	logger.SetOutput(&bytes.Buffer{})
 	suite := &fakeSuite{log: logger, ado: false}
 
-	helper := &fakeHelper{}
+	helper := &outputHelper{}
 	registrant := &runnableInstance{Argumented: helper, TestRegistrant: helper}
 
 	artifactManager, err := artifacts.NewArtifactManager(suite, nil, nil)
@@ -143,7 +127,7 @@ func TestExecuteTestCasesNonAzureDevopsNoMarkers(t *testing.T) {
 		t.Fatalf("failed to create test manager: %v", err)
 	}
 
-	if err := executeTestCases(suite, registrant, testMgr, false); err != nil {
+	if err := executeTestCases(suite, registrant, testMgr, false, false); err != nil {
 		t.Fatalf("executeTestCases returned error: %v", err)
 	}
 
