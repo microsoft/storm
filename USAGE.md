@@ -136,6 +136,45 @@ func (s MyScenario) RegisterTestCases(r storm.TestRegistrar) error {
 By default, storm will capture stdout, stderr and logrus. Test suites are
 encouraged to use these facilities.
 
+## Failure Hooks
+
+A scenario or helper may implement the optional `storm.OnFailure` interface to
+capture diagnostics when its run fails:
+
+```go
+func (s *MyScenario) OnFailure(fc storm.FailureContext) error {
+    for _, c := range fc.FailedCases() {
+        logrus.Warnf("case %q failed (error=%t): %s", c.Name(), c.IsError(), c.Reason())
+    }
+    // Publish diagnostics to the run's -o artifact output directory.
+    fc.ArtifactBroker().PublishArtifactData("notes.txt", []byte("..."))
+    return nil
+}
+```
+
+Like `Setup`/`Cleanup`, the hook is discovered by a type assertion — you opt in
+simply by defining the method; there is no registration call.
+
+- **When it runs:** after all test cases, and **before** the SuiteCleanup
+  functions and `Cleanup()`, so resources under test still exist.
+- **When it fires:** only when at least one case ended failed or errored. It
+  does **not** fire for skipped cases (including `SkipAll`) or for `Setup()`
+  failures. Because the suite bails on the first failure, `FailedCases()`
+  contains exactly one case.
+- **It is not bounded** by the per-test-case cleanup timeout, so long-running
+  capture (e.g. copying a large disk image) will not be truncated — provided it
+  runs in the hook itself and not via `tc.SuiteCleanup`/`BackgroundWaitGroup`.
+- **It cannot mask the real failure:** an error or panic returned from
+  `OnFailure` is logged on its own line, but the originally failed case remains
+  the reported cause and the exit code is unchanged.
+- **Destructive capture and `--pause-cleanup`:** the hook runs *before* the
+  `--pause-cleanup` wait, so a destructive capture (e.g. powering off a VM to
+  copy its disk) would tear down the very environment a developer paused to
+  inspect. `fc.CleanupPaused()` reports whether cleanup pausing is enabled, so
+  such a hook can skip or defer its destructive work in that case.
+- The `ArtifactBroker` is a no-op unless the suite is run with `-o`
+  (artifacts) / `-l` (logs) / under Azure DevOps (`UploadArtifact`).
+
 ## Test Cases
 
 Test cases MUST have unique names within each scenario or helper, and ideally

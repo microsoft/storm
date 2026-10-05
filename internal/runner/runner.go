@@ -82,7 +82,7 @@ func RegisterAndRunTests(suite core.SuiteContext,
 	}
 
 	// Actually run the thing
-	err = executeTestCases(suite, registrantInstance, testMgr, watch, pauseCleanup)
+	err = executeTestCases(suite, registrantInstance, testMgr, artifactManager, watch, pauseCleanup)
 	testMgr.StopTimer()
 	if err != nil {
 		switch err.(type) {
@@ -127,6 +127,7 @@ func RegisterAndRunTests(suite core.SuiteContext,
 func executeTestCases(suite core.SuiteContext,
 	runnable *runnableInstance,
 	testManager *testmgr.StormTestManager,
+	artifactManager *artifacts.ArtifactManager,
 	watch bool,
 	pauseCleanup bool,
 ) error {
@@ -316,6 +317,13 @@ func executeTestCases(suite core.SuiteContext,
 			devops.SetProgress(0.95 * float64(i+1) / float64(totalTestCases))
 		}
 	}
+
+	// If the run failed and the runnable implements OnFailure, invoke it now -
+	// after the test loop but before the pause, the SuiteCleanup drain and the
+	// Cleanup() hook - so diagnostics can be captured while the resources under
+	// test still exist. Any error it produces is logged but does not replace the
+	// original failure as the reported cause.
+	runOnFailureHook(suite, runnable, testManager, artifactManager, watch, pauseCleanup)
 
 	if pauseCleanup {
 		suite.Logger().Warn("Waiting for external signal before cleanup...")
