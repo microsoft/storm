@@ -31,6 +31,22 @@ func (s *HelloWorldScenario) Cleanup(core.SetupCleanupContext) error {
 	return nil
 }
 
+// OnFailure is an OPTIONAL hook (storm.OnFailure). When implemented, storm
+// calls it after the test cases run and before Cleanup() - so resources under
+// test still exist - but ONLY when at least one case failed or errored (never
+// for skips). Use it to capture diagnostics for the failing run; the broker
+// publishes to the directory given with the run's -o flag.
+func (s *HelloWorldScenario) OnFailure(fc storm.FailureContext) error {
+	for _, c := range fc.FailedCases() {
+		logrus.Warnf("Case '%s' failed (error=%t): %s", c.Name(), c.IsError(), c.Reason())
+	}
+
+	// A destructive capture would check fc.CleanupPaused() first so it does not
+	// tear down an environment a developer paused (--pause-cleanup) to inspect.
+	fc.ArtifactBroker().PublishArtifactData("failure-notes.txt", []byte("captured on failure"))
+	return nil
+}
+
 // RequiredFiles implements core.Scenario.
 func (s *HelloWorldScenario) RequiredFiles() []string {
 	return nil
