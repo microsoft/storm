@@ -1,7 +1,6 @@
 package runner
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -11,30 +10,7 @@ import (
 	"github.com/microsoft/storm/internal/artifacts"
 	"github.com/microsoft/storm/internal/testmgr"
 	"github.com/microsoft/storm/pkg/storm/core"
-
-	"github.com/sirupsen/logrus"
 )
-
-// fakeSuite is a minimal core.SuiteContext for exercising executeTestCases.
-type fakeSuite struct {
-	log *logrus.Logger
-	ctx context.Context
-}
-
-func newFakeSuite(ctx context.Context) *fakeSuite {
-	logger := logrus.New()
-	logger.SetOutput(&bytes.Buffer{}) // keep logger noise out of test output
-	return &fakeSuite{log: logger, ctx: ctx}
-}
-
-func (s *fakeSuite) Name() string                  { return "storm-test" }
-func (s *fakeSuite) Logger() *logrus.Logger        { return s.log }
-func (s *fakeSuite) Scenarios() []core.Scenario    { return nil }
-func (s *fakeSuite) Scenario(string) core.Scenario { return nil }
-func (s *fakeSuite) Helpers() []core.Helper        { return nil }
-func (s *fakeSuite) Helper(string) core.Helper     { return nil }
-func (s *fakeSuite) AzureDevops() bool             { return false }
-func (s *fakeSuite) Context() context.Context      { return s.ctx }
 
 // fakeHelper is a configurable core.Helper (optionally core.SetupCleanup).
 type fakeHelper struct {
