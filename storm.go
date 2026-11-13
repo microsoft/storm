@@ -16,6 +16,10 @@ type BaseHelper = core.BaseHelper
 
 type SetupCleanupContext = core.SetupCleanupContext
 
+type OnFailure = core.OnFailure
+type FailureContext = core.FailureContext
+type FailedCase = core.FailedCase
+
 type TestRegistrar = core.TestRegistrar
 type TestCase = core.TestCase
 type TestCaseFunction = core.TestCaseFunction
