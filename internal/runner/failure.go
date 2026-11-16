@@ -97,10 +97,11 @@ func runOnFailureHook(
 	suite.Logger().Info("Running OnFailure() Hook")
 
 	var hookErr error
+	streamOutput := suite.AzureDevops() || watch
 	captured, captureErr := captureOutput(func() {
 		hookErr = runCatchPanic(func() error { return hook.OnFailure(fctx) })
 	}, func(w io.Writer, s string) {
-		if suite.AzureDevops() || watch {
+		if streamOutput {
 			fmt.Fprintf(w, "  ├ %s\n", s)
 		}
 	})
@@ -113,8 +114,12 @@ func runOnFailureHook(
 	// original failure stays the reported cause and the exit code is unchanged.
 	if hookErr != nil {
 		suite.Logger().WithError(hookErr).Error("OnFailure() hook failed (diagnostic capture only; original failure preserved)")
-		if len(captured) > 0 {
+	}
+	if !streamOutput && len(captured) > 0 {
+		if hookErr != nil {
 			suite.Logger().Errorf("OnFailure() output:\n%s", strings.Join(captured, "\n"))
+		} else {
+			suite.Logger().Infof("OnFailure() output:\n%s", strings.Join(captured, "\n"))
 		}
 	}
 }

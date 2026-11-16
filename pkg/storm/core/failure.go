@@ -41,6 +41,8 @@ type FailureContext interface {
 	// surface as TestCase.ArtifactBroker(). It is a no-op unless the suite was
 	// run with an artifact output directory (-o), a log directory (-l), or
 	// under Azure DevOps (for UploadArtifact).
+	// Publication errors are logged without changing the original case result.
+	// Stream creation errors return a discard writer after logging.
 	ArtifactBroker() artifacts.ArtifactBroker
 }
 

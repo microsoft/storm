@@ -1,16 +1,22 @@
 package runner
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/microsoft/storm/internal/artifacts"
+	"github.com/microsoft/storm/internal/devops"
 	"github.com/microsoft/storm/internal/testmgr"
 	"github.com/microsoft/storm/pkg/storm/core"
+
+	"github.com/sirupsen/logrus"
 )
 
 // onFailureHelper is a helper whose cases and OnFailure behavior are
@@ -203,6 +209,96 @@ func TestOnFailureBrokerPublishes(t *testing.T) {
 	}
 }
 
+func TestOnFailureStreamCreationErrorPreservesFailure(t *testing.T) {
+	dir := t.TempDir()
+	var logs bytes.Buffer
+	suite := newFakeSuite(context.Background())
+	suite.Logger().SetOutput(&logs)
+	finished := false
+	h := &onFailureHelper{
+		cases: []caseSpec{{"bad", func(tc core.TestCase) error { tc.Fail("boom"); return nil }}},
+		onFail: func(fc core.FailureContext) error {
+			stream := fc.ArtifactBroker().StreamArtifactData("../invalid")
+			if _, err := stream.Write([]byte("diagnostic")); err != nil {
+				return err
+			}
+			if err := stream.Close(); err != nil {
+				return err
+			}
+			finished = true
+			return nil
+		},
+	}
+
+	tm := runOnFailureWithSuite(t, suite, h, &dir, false)
+	if !finished {
+		t.Fatal("stream creation error interrupted the failure hook")
+	}
+	if !strings.Contains(logs.String(), "OnFailure artifact publish failed") {
+		t.Errorf("stream creation error was not logged:\n%s", logs.String())
+	}
+	if tc := tm.TestCases()[0]; !tc.Status().Failed() || tc.Reason() != "boom" {
+		t.Errorf("original failure changed: %s (%s)", tc.Status(), tc.Reason())
+	}
+}
+
+func TestOnFailureOutputReportedOnce(t *testing.T) {
+	for _, mode := range []struct {
+		name  string
+		watch bool
+		ado   bool
+	}{
+		{name: "quiet"},
+		{name: "watch", watch: true},
+		{name: "ado", ado: true},
+	} {
+		for _, hookFails := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/error=%t", mode.name, hookFails), func(t *testing.T) {
+				suite := newFakeSuite(context.Background())
+				suite.ado = mode.ado
+				h := &onFailureHelper{
+					cases: []caseSpec{{"bad", func(tc core.TestCase) error { tc.Fail("boom"); return nil }}},
+					onFail: func(core.FailureContext) error {
+						fmt.Fprintln(os.Stdout, "hook-stdout-marker")
+						fmt.Fprintln(os.Stderr, "hook-stderr-marker")
+						logrus.Warn("hook-logrus-marker")
+						if hookFails {
+							return errors.New("diagnostics failed")
+						}
+						return nil
+					},
+				}
+				registrant := &runnableInstance{Argumented: h, TestRegistrant: h}
+				am, err := artifacts.NewArtifactManager(suite, nil, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				tm, err := testmgr.NewStormTestManager(suite, registrant, am)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				var runErr error
+				output, err := captureOutput(func() {
+					suite.Logger().SetOutput(os.Stdout)
+					restore := devops.SetStdout(os.Stdout)
+					defer restore()
+					runErr = executeTestCases(suite, registrant, tm, am, mode.watch, false)
+				}, func(io.Writer, string) {})
+				if err != nil || runErr != nil {
+					t.Fatalf("capture error: %v; run error: %v", err, runErr)
+				}
+				captured := strings.Join(output, "\n")
+				for _, marker := range []string{"hook-stdout-marker", "hook-stderr-marker", "hook-logrus-marker"} {
+					if count := strings.Count(captured, marker); count != 1 {
+						t.Errorf("%s appeared %d times, want 1:\n%s", marker, count, captured)
+					}
+				}
+			})
+		}
+	}
+}
+
 // CleanupPaused reflects the pauseCleanup flag so a destructive hook can adapt.
 func TestOnFailureCleanupPaused(t *testing.T) {
 	failingCase := caseSpec{"bad", func(tc core.TestCase) error { tc.Fail("boom"); return nil }}
@@ -233,9 +329,20 @@ func TestOnFailureCleanupPaused(t *testing.T) {
 	})
 }
 
+type failingHelper struct{ core.BaseHelper }
+
+func (h *failingHelper) Name() string { return "failing-helper" }
+func (h *failingHelper) RegisterTestCases(r core.TestRegistrar) error {
+	r.RegisterTestCase("bad", func(tc core.TestCase) error {
+		tc.Fail("boom")
+		return nil
+	})
+	return nil
+}
+
 // A runnable that does not implement OnFailure is unaffected by a failure.
 func TestOnFailureAbsentIsNoop(t *testing.T) {
-	h := &fakeHelper{numCases: 1}
+	h := &failingHelper{}
 	suite := newFakeSuite(context.Background())
 	registrant := &runnableInstance{Argumented: h, TestRegistrant: h}
 	am, err := artifacts.NewArtifactManager(suite, nil, nil)
@@ -246,9 +353,10 @@ func TestOnFailureAbsentIsNoop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStormTestManager: %v", err)
 	}
-	// Should simply run without invoking any hook or erroring.
 	if err := executeTestCases(suite, registrant, tm, am, false, false); err != nil {
 		t.Fatalf("executeTestCases returned error: %v", err)
 	}
-	_ = fmt.Sprint(tm.TestCases())
+	if tc := tm.TestCases()[0]; !tc.Status().Failed() || tc.Reason() != "boom" {
+		t.Errorf("original failure changed: %s (%s)", tc.Status(), tc.Reason())
+	}
 }

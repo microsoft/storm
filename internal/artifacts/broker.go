@@ -92,6 +92,7 @@ func (b *ArtifactBroker) StreamArtifactData(destination string) io.WriteCloser {
 	writer, err := b.manager.streamArtifact(destination)
 	if err != nil {
 		b.reportError(fmt.Errorf("failed to create stream for artifact '%s': %w", destination, err))
+		return discarder
 	}
 
 	return writer
