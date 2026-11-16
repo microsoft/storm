@@ -51,7 +51,7 @@ func (h *fakeHelper) Cleanup(core.SetupCleanupContext) error {
 	return nil
 }
 
-func newTestManager(t *testing.T, suite core.SuiteContext, helper *fakeHelper) (*testmgr.StormTestManager, *runnableInstance) {
+func newTestManager(t *testing.T, suite core.SuiteContext, helper *fakeHelper) (*testmgr.StormTestManager, *runnableInstance, *artifacts.ArtifactManager) {
 	t.Helper()
 	registrant := &runnableInstance{Argumented: helper, TestRegistrant: helper}
 	am, err := artifacts.NewArtifactManager(suite, nil, nil)
@@ -62,7 +62,7 @@ func newTestManager(t *testing.T, suite core.SuiteContext, helper *fakeHelper) (
 	if err != nil {
 		t.Fatalf("failed to create test manager: %v", err)
 	}
-	return tm, registrant
+	return tm, registrant, am
 }
 
 // When the suite context is already cancelled, every test case must be marked
@@ -73,9 +73,9 @@ func TestExecuteTestCasesSuiteCancelledMarksNotRun(t *testing.T) {
 
 	suite := newFakeSuite(ctx)
 	helper := &fakeHelper{numCases: 3}
-	tm, registrant := newTestManager(t, suite, helper)
+	tm, registrant, am := newTestManager(t, suite, helper)
 
-	if err := executeTestCases(suite, registrant, tm, false, false); err != nil {
+	if err := executeTestCases(suite, registrant, tm, am, false, false); err != nil {
 		t.Fatalf("executeTestCases returned error: %v", err)
 	}
 
@@ -93,9 +93,9 @@ func TestExecuteTestCasesSuiteCancelledMarksNotRun(t *testing.T) {
 func TestExecuteTestCasesNormalRunPasses(t *testing.T) {
 	suite := newFakeSuite(context.Background())
 	helper := &fakeHelper{numCases: 2}
-	tm, registrant := newTestManager(t, suite, helper)
+	tm, registrant, am := newTestManager(t, suite, helper)
 
-	if err := executeTestCases(suite, registrant, tm, false, false); err != nil {
+	if err := executeTestCases(suite, registrant, tm, am, false, false); err != nil {
 		t.Fatalf("executeTestCases returned error: %v", err)
 	}
 
@@ -117,9 +117,9 @@ func TestSetupErrorSurfacesCollectedOutput(t *testing.T) {
 			return fmt.Errorf("setup boom")
 		},
 	}
-	tm, registrant := newTestManager(t, suite, helper)
+	tm, registrant, am := newTestManager(t, suite, helper)
 
-	err := executeTestCases(suite, registrant, tm, false, false)
+	err := executeTestCases(suite, registrant, tm, am, false, false)
 	if err == nil {
 		t.Fatal("expected a setup error, got nil")
 	}
@@ -144,11 +144,11 @@ func TestPauseCleanupReturnsWhenContextCancelled(t *testing.T) {
 	// No test cases: isolates the pauseCleanup wait from the cancellation
 	// skip-loop, so we specifically prove the pause wait unblocks.
 	helper := &fakeHelper{numCases: 0}
-	tm, registrant := newTestManager(t, suite, helper)
+	tm, registrant, am := newTestManager(t, suite, helper)
 
 	done := make(chan error, 1)
 	go func() {
-		done <- executeTestCases(suite, registrant, tm, false, true)
+		done <- executeTestCases(suite, registrant, tm, am, false, true)
 	}()
 
 	select {
