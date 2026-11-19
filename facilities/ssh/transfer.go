@@ -37,7 +37,9 @@ func (c *Client) Fetch(ctx context.Context, remotePath string, dst io.Writer) er
 // Upload writes src to a remote file owned by the SFTP server user with mode
 // 0600, staging in a private directory before renaming. Atomic replacement
 // requires the server's POSIX rename extension; without it, an existing
-// destination causes an error.
+// destination causes an error. Replacement does not follow destination symlinks
+// or preserve existing ownership/mode. An error after rename or a lost
+// acknowledgment does not imply the destination is unchanged.
 // Files and transfer sessions are closed, with close errors returned. src
 // remains caller-owned; callers must unblock pending reads on cancellation.
 // Abrupt disconnections can leave a private staging directory on the server.

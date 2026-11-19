@@ -38,7 +38,7 @@ func (c *Client) Run(ctx context.Context, command string) (Result, error) {
 // serialized, so both may use the same writer. Commands are never retried.
 //
 // Cancellation stops waiting during startup and execution without closing the
-// shared connection. Pending channel opens are released when the peer responds
+// shared connection. Pending negotiations are released when the peer responds
 // or Client.Close is called. Remote process termination is not guaranteed.
 // Caller streams are not closed; writers must not block indefinitely, and
 // callers must unblock pending reads from stdin themselves when cancelling.

@@ -2,6 +2,8 @@
 
 Optional building blocks for storm test suites. `facilities` is its own Go
 module, so importing it does not add its dependencies to storm itself.
+Requires Go 1.24 or newer. Module releases use `facilities/v<version>` tags;
+Storm core tags do not release this module.
 
 | Package | Purpose |
 | --- | --- |
@@ -46,7 +48,7 @@ privately with mode `0600`; replacing an existing file requires the server's
 POSIX rename extension. File and SFTP close errors are returned.
 
 Cancellation covers session/command/SFTP startup and transfers without closing
-unrelated sessions. Pending channel opens are released when the server responds
+unrelated sessions. Pending negotiations are released when the server responds
 or the client closes. Caller streams are never closed; writers must not block
 indefinitely, and callers must unblock pending stdin/source reads on cancellation.
 

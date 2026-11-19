@@ -71,7 +71,8 @@ type Config struct {
 	Auth ssh.Signer
 	// HostKey is required.
 	HostKey ssh.HostKeyCallback
-	// DialTimeout bounds one connection attempt. Defaults to 10 seconds.
+	// DialTimeout bounds TCP dialing and the handshake together. Defaults to
+	// 10 seconds; negative values are invalid.
 	DialTimeout time.Duration
 	// RetryAuthFailure makes WaitReady keep retrying when the server rejects
 	// the key. Off by default so a wrong key fails fast. Turn it on for a
@@ -96,7 +97,20 @@ func (c Config) client() (*ssh.ClientConfig, error) {
 	if c.Auth == nil {
 		return nil, fmt.Errorf("ssh: %w: Auth is required", errConfig)
 	}
+	_, port, err := net.SplitHostPort(c.Addr)
+	if err != nil {
+		return nil, fmt.Errorf("ssh: %w: Addr: %w", errConfig, err)
+	}
+	if port == "" {
+		return nil, fmt.Errorf("ssh: %w: Addr port is required", errConfig)
+	}
+	if _, err := net.LookupPort("tcp", port); err != nil {
+		return nil, fmt.Errorf("ssh: %w: Addr port: %w", errConfig, err)
+	}
 	timeout := c.DialTimeout
+	if timeout < 0 {
+		return nil, fmt.Errorf("ssh: %w: DialTimeout must not be negative", errConfig)
+	}
 	if timeout == 0 {
 		timeout = 10 * time.Second
 	}
@@ -120,10 +134,16 @@ type Client struct {
 // The returned client remains usable after ctx ends and must be closed by
 // the caller. Config.HostKey must explicitly verify or accept the host key.
 func Dial(ctx context.Context, cfg Config) (*Client, error) {
+	return dial(ctx, cfg, (&net.Dialer{}).DialContext)
+}
+
+func dial(ctx context.Context, cfg Config, connect func(context.Context, string, string) (net.Conn, error)) (*Client, error) {
 	cc, err := cfg.client()
 	if err != nil {
 		return nil, err
 	}
+	attemptCtx, cancel := context.WithTimeout(ctx, cc.Timeout)
+	defer cancel()
 	var hostKeyErr error
 	check := cc.HostKeyCallback
 	cc.HostKeyCallback = func(host string, remote net.Addr, key ssh.PublicKey) error {
@@ -131,22 +151,22 @@ func Dial(ctx context.Context, cfg Config) (*Client, error) {
 		return hostKeyErr
 	}
 
-	nc, err := (&net.Dialer{Timeout: cc.Timeout}).DialContext(ctx, "tcp", cfg.Addr)
+	nc, err := connect(attemptCtx, "tcp", cfg.Addr)
 	if err != nil {
 		return nil, fmt.Errorf("dial %s: %w", cfg.Addr, err)
 	}
 	// Closing the connection is what interrupts a handshake in progress.
-	stop := context.AfterFunc(ctx, func() { nc.Close() })
+	stop := context.AfterFunc(attemptCtx, func() { nc.Close() })
 
-	// The handshake has its own deadline: the dialer's timeout ended with the dial.
-	_ = nc.SetDeadline(time.Now().Add(cc.Timeout))
+	deadline, _ := attemptCtx.Deadline()
+	_ = nc.SetDeadline(deadline)
 	sc, chans, reqs, err := ssh.NewClientConn(nc, cfg.Addr, cc)
 	if err == nil {
 		_ = nc.SetDeadline(time.Time{})
 	}
 	if !stop() || err != nil {
 		nc.Close()
-		if ctxErr := ctx.Err(); ctxErr != nil {
+		if ctxErr := attemptCtx.Err(); ctxErr != nil {
 			return nil, fmt.Errorf("handshake with %s: %w", cfg.Addr, ctxErr)
 		}
 		switch {
@@ -174,6 +194,7 @@ func Dial(ctx context.Context, cfg Config) (*Client, error) {
 // unless Config.RetryAuthFailure is set, a rejected key) are returned at once.
 // No connection is left open on failure.
 // Use a bounded ctx; the returned client's lifetime is independent of it.
+// Nonpositive intervals retry without a delay.
 func WaitReady(ctx context.Context, cfg Config, interval time.Duration) (*Client, error) {
 	var last error
 	for {
