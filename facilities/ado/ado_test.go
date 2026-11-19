@@ -30,6 +30,7 @@ func TestMarshalMatrixRejectsBadNames(t *testing.T) {
 		{"_leg": {"A": "b"}},
 		{strings.Repeat("a", 101): {"A": "b"}},
 		{"ok": {"Secret_x": "b"}},
+		{"ok": {"PaThToImage": "b"}},
 	} {
 		if _, err := MarshalMatrix(m); err == nil {
 			t.Errorf("accepted %v", m)
@@ -64,10 +65,36 @@ func TestMarshalMatrixAcceptsLongestLegName(t *testing.T) {
 }
 
 func TestSetVariableRejectsReservedPrefix(t *testing.T) {
-	for _, n := range []string{"secret.x", "INPUT_a", "endpointUrl", "SecureFileName"} {
+	for _, n := range []string{"secret.x", "INPUT_a", "endpointUrl", "SecureFileName", "path", "PathToImage", "pAtH_cache"} {
 		if err := SetVariable(&bytes.Buffer{}, n, "v", false); err == nil {
 			t.Errorf("accepted %q", n)
 		}
+	}
+}
+
+func TestMarshalMatrixNormalizesNilMaps(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		entries map[string]map[string]string
+		want    string
+	}{
+		{"nil matrix", nil, "{}"},
+		{"empty matrix", map[string]map[string]string{}, "{}"},
+		{"nil leg", map[string]map[string]string{"job": nil}, `{"job":{}}`},
+		{"mixed legs", map[string]map[string]string{"job": nil, "vm_host": {"SCENARIO": "vm-host"}}, `{"job":{},"vm_host":{"SCENARIO":"vm-host"}}`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := MarshalMatrix(tt.entries)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(got) != tt.want {
+				t.Errorf("got %s, want %s", got, tt.want)
+			}
+			if original, ok := tt.entries["job"]; ok && original != nil {
+				t.Error("encoding changed the caller's nil leg")
+			}
+		})
 	}
 }
 

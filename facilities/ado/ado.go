@@ -22,7 +22,7 @@ var (
 
 // Azure DevOps reserves these (case-insensitive) variable name prefixes for its
 // own use, for example for secrets.
-var reservedPrefixes = []string{"secret", "input", "endpoint", "securefile"}
+var reservedPrefixes = []string{"secret", "input", "endpoint", "path", "securefile"}
 
 func checkVarName(name string) error {
 	if !varName.MatchString(name) {
@@ -41,7 +41,9 @@ func checkVarName(name string) error {
 // Leg names use ASCII letters, digits or underscores, start with a letter, and
 // contain at most 100 characters. Variables follow SetVariable's naming rules.
 // Legs and variables are emitted in sorted order, so output is stable.
+// Nil maps encode as empty objects; the caller's maps are not modified.
 func MarshalMatrix(entries map[string]map[string]string) ([]byte, error) {
+	matrix := make(map[string]map[string]string, len(entries))
 	for leg, vars := range entries {
 		if !legName.MatchString(leg) {
 			return nil, fmt.Errorf("invalid matrix leg name %q: want a letter followed by up to 99 letters, digits or underscores", leg)
@@ -51,16 +53,20 @@ func MarshalMatrix(entries map[string]map[string]string) ([]byte, error) {
 				return nil, fmt.Errorf("leg %q: %w", leg, err)
 			}
 		}
+		if vars == nil {
+			vars = map[string]string{}
+		}
+		matrix[leg] = vars
 	}
 	// encoding/json sorts map keys.
-	return json.Marshal(entries)
+	return json.Marshal(matrix)
 }
 
 // SetVariable writes one newline-terminated task.setvariable command to w.
 // Names must be nonempty and use only ASCII letters, digits, underscores or dots.
-// The prefixes secret, input, endpoint and securefile are reserved (case-insensitive).
-// Values are escaped,
-// not masked as secrets. isOutput enables the task's output-variable scope.
+// The prefixes secret, input, endpoint, path and securefile are reserved
+// (case-insensitive). Values are escaped, not masked as secrets. isOutput
+// enables the task's output-variable scope.
 // Validation and writer errors are returned.
 //
 // Use stdout outside captured test output; disable shell tracing in any wrapper.

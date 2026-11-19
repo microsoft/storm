@@ -231,13 +231,17 @@ func TestWaitReadyRetriesUntilServerAppears(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	serverDone := make(chan struct{})
 	go func() {
+		defer close(serverDone)
 		time.Sleep(300 * time.Millisecond)
 		l, err := net.Listen("tcp", addr)
 		if err != nil {
 			return
 		}
 		defer l.Close()
+		stop := context.AfterFunc(ctx, func() { l.Close() })
+		defer stop()
 		_, hostPriv, _ := ed25519.GenerateKey(rand.Reader)
 		hs, _ := ssh.NewSignerFromKey(hostPriv)
 		cfg := &ssh.ServerConfig{NoClientAuth: true}
@@ -257,6 +261,12 @@ func TestWaitReadyRetriesUntilServerAppears(t *testing.T) {
 		t.Fatal(err)
 	}
 	c.Close()
+	cancel()
+	select {
+	case <-serverDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("cancellation did not stop the listener")
+	}
 }
 
 func TestWaitReadyStopsWhenContextEnds(t *testing.T) {
