@@ -6,10 +6,12 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -21,6 +23,10 @@ import (
 // server runs an in-process SSH server that accepts one key and answers a few
 // fixed commands: "echo-ok" prints ok, "fail" exits 3, anything else exits 127.
 func server(t *testing.T, authorized ssh.PublicKey) string {
+	return serverWithHandler(t, authorized, serveChannel)
+}
+
+func serverWithHandler(t *testing.T, authorized ssh.PublicKey, handler func(*ssh.ServerConn, ssh.NewChannel)) string {
 	t.Helper()
 	_, hostPriv, _ := ed25519.GenerateKey(rand.Reader)
 	hostSigner, err := ssh.NewSignerFromKey(hostPriv)
@@ -41,21 +47,43 @@ func server(t *testing.T, authorized ssh.PublicKey) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { l.Close() })
+	var connections sync.Map
+	var workers sync.WaitGroup
+	workers.Add(1)
+	t.Cleanup(func() {
+		l.Close()
+		connections.Range(func(key, _ any) bool {
+			_ = key.(net.Conn).Close()
+			return true
+		})
+		workers.Wait()
+	})
 
 	go func() {
+		defer workers.Done()
 		for {
 			nc, err := l.Accept()
 			if err != nil {
 				return
 			}
-			go serve(nc, cfg)
+			connections.Store(nc, struct{}{})
+			workers.Add(1)
+			go func() {
+				defer workers.Done()
+				defer connections.Delete(nc)
+				serveWithHandler(nc, cfg, handler)
+			}()
 		}
 	}()
 	return l.Addr().String()
 }
 
 func serve(nc net.Conn, cfg *ssh.ServerConfig) {
+	serveWithHandler(nc, cfg, serveChannel)
+}
+
+func serveWithHandler(nc net.Conn, cfg *ssh.ServerConfig, handler func(*ssh.ServerConn, ssh.NewChannel)) {
+	defer nc.Close()
 	conn, chans, reqs, err := ssh.NewServerConn(nc, cfg)
 	if err != nil {
 		return
@@ -63,53 +91,80 @@ func serve(nc net.Conn, cfg *ssh.ServerConfig) {
 	defer conn.Close()
 	go ssh.DiscardRequests(reqs)
 	for nch := range chans {
-		if nch.ChannelType() != "session" {
-			_ = nch.Reject(ssh.UnknownChannelType, "no")
+		go handler(conn, nch)
+	}
+}
+
+func serveChannel(conn *ssh.ServerConn, nch ssh.NewChannel) {
+	if nch.ChannelType() != "session" {
+		_ = nch.Reject(ssh.UnknownChannelType, "no")
+		return
+	}
+	ch, creqs, err := nch.Accept()
+	if err != nil {
+		return
+	}
+	defer ch.Close()
+	for r := range creqs {
+		if (r.Type == "subsystem" && string(r.Payload[4:]) == "sftp") ||
+			(r.Type == "exec" && string(r.Payload[4:]) == "sudo -n /test/sftp-server") {
+			_ = r.Reply(true, nil)
+			srv, err := sftp.NewServer(ch)
+			if err == nil {
+				_ = srv.Serve()
+			}
+			return
+		}
+		if r.Type != "exec" {
+			_ = r.Reply(false, nil)
 			continue
 		}
-		ch, creqs, _ := nch.Accept()
-		go func() {
-			defer ch.Close()
-			for r := range creqs {
-				if r.Type == "subsystem" && string(r.Payload[4:]) == "sftp" {
-					_ = r.Reply(true, nil)
-					srv, err := sftp.NewServer(ch)
-					if err == nil {
-						_ = srv.Serve()
-					}
-					return
-				}
-				if r.Type != "exec" {
-					_ = r.Reply(false, nil)
-					continue
-				}
-				cmd := string(r.Payload[4:])
-				_ = r.Reply(true, nil)
-				status := byte(127)
-				switch cmd {
-				case "echo-ok":
-					_, _ = ch.Write([]byte("ok\n"))
-					status = 0
-				case "fail":
-					_, _ = ch.Stderr().Write([]byte("bad\n"))
-					status = 3
-				case "hang":
-					time.Sleep(3 * time.Second)
-					return
-				case "signal":
-					_, _ = ch.SendRequest("exit-signal", false,
-						ssh.Marshal(struct {
-							Signal     string
-							CoreDumped bool
-							Error      string
-							Lang       string
-						}{"KILL", false, "killed", ""}))
-					return
-				}
-				_, _ = ch.SendRequest("exit-status", false, []byte{0, 0, 0, status})
-				return
-			}
-		}()
+		cmd := string(r.Payload[4:])
+		_ = r.Reply(true, nil)
+		status := byte(127)
+		switch cmd {
+		case "echo-ok":
+			_, _ = ch.Write([]byte("ok\n"))
+			status = 0
+		case "fail":
+			_, _ = ch.Stderr().Write([]byte("bad\n"))
+			status = 3
+		case "copy-input":
+			_, _ = io.Copy(ch, ch)
+			status = 0
+		case "large-output":
+			var writes sync.WaitGroup
+			writes.Add(2)
+			go func() {
+				defer writes.Done()
+				_, _ = ch.Write(bytes.Repeat([]byte("o"), 3<<20))
+			}()
+			go func() {
+				defer writes.Done()
+				_, _ = ch.Stderr().Write(bytes.Repeat([]byte("e"), 3<<20))
+			}()
+			writes.Wait()
+			status = 0
+		case "missing-status":
+			return
+		case "disconnect":
+			_ = conn.Close()
+			return
+		case "hang":
+			time.Sleep(3 * time.Second)
+			return
+		case "signal":
+			_, _ = ch.SendRequest("exit-signal", false,
+				ssh.Marshal(struct {
+					Signal     string
+					CoreDumped bool
+					Error      string
+					Lang       string
+				}{"KILL", false, "killed", ""}))
+			return
+		}
+		_, _ = ch.SendRequest("exit-status", false, []byte{0, 0, 0, status})
+		return
 	}
 }
 
