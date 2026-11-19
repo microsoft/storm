@@ -45,6 +45,12 @@ Commands:
     Run a specific helper
 ```
 
+For JUnit output without intentional skips, use
+`run --junit-omit-skipped -j results.xml <scenario>` (also available for `helper`).
+Cases skipped with `Skip` or `SkipAll` are omitted; not-run cases remain.
+Console output, logs, and exit status are unchanged. An entirely skipped run
+produces a report with zero tests.
+
 ## Entry Point Definition
 
 The entry point for each suite is the `main` function defined in `cmd/<suite-name>/main.go`.

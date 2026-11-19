@@ -38,6 +38,7 @@ func RegisterAndRunTests(suite core.SuiteContext,
 	pauseCleanup bool,
 	logDir *string,
 	junitPath *string,
+	junitOmitSkipped bool,
 	artifactDir *string,
 ) error {
 	// Create a new runnable instance
@@ -104,7 +105,7 @@ func RegisterAndRunTests(suite core.SuiteContext,
 	rep.PrintReport()
 
 	if junitPath != nil {
-		err := rep.ProduceJUnitXML(*junitPath)
+		err := rep.ProduceJUnitXML(*junitPath, junitOmitSkipped)
 		if err != nil {
 			return fmt.Errorf("failed to produce JUnit XML at '%s': %w", *junitPath, err)
 		}
