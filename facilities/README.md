@@ -12,7 +12,22 @@ module, so importing it does not add its dependencies to storm itself.
 The packages are deliberately concrete: consumers define the small interfaces
 they need.
 
+## Data ISOs
+
+Build a labeled image from a directory containing guest configuration:
+
+```go
+err := iso.Build(ctx, "seed.iso", "SEED", os.DirFS("seed"))
+```
+
+Requires `xorrisofs`, `genisoimage` or `mkisofs` in `PATH`. This builds data
+volumes, not bootable installer media. See the [complete example](iso/example_test.go).
+
 ## SSH
+
+See [usage examples](ssh/example_test.go) for disposable-guest keys and readiness,
+buffered/streaming commands, uploads, downloads, verified host keys, privileged
+SFTP, and reboot/disconnect handling.
 
 `Dial` and `WaitReady` contexts only bound connection establishment; a connected
 client remains usable after those contexts end. `WaitDisconnected(ctx)` waits
@@ -37,3 +52,21 @@ indefinitely, and callers must unblock pending stdin/source reads on cancellatio
 
 `GenerateKey` creates ed25519 keys. Check guest crypto-policy support, or supply
 another `ssh.Signer` through `Config.Auth`.
+
+## Azure DevOps
+
+```go
+matrix, err := ado.MarshalMatrix(map[string]map[string]string{
+    "vm_host": {"SCENARIO": "vm-host"},
+})
+if err != nil {
+    return err
+}
+return ado.SetVariable(os.Stdout, "TEST_MATRIX", string(matrix), true)
+```
+
+Leg IDs must start with a letter and contain only letters, digits or underscores
+(100 characters maximum); keep the original scenario name in a variable.
+Run emitters from an uncaptured CLI script so commands reach stdout unchanged.
+Disable shell tracing in wrappers; values are not masked as secrets.
+See the [examples](ado/example_test.go).

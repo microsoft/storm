@@ -22,6 +22,7 @@ import (
 // Key is an in-memory key pair. Nothing is written to disk; callers decide
 // whether to persist PEM (with mode 0600).
 type Key struct {
+	// Signer authenticates connections through Config.Auth.
 	Signer ssh.Signer
 	// AuthorizedKey is the public key in authorized_keys format, newline-terminated.
 	AuthorizedKey string
@@ -29,7 +30,8 @@ type Key struct {
 	PEM []byte
 }
 
-// GenerateKey creates a new ed25519 key pair.
+// GenerateKey creates an in-memory ed25519 key pair. Install AuthorizedKey in
+// the guest before connecting; check that its crypto policy permits ed25519.
 func GenerateKey() (*Key, error) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -63,7 +65,9 @@ func InsecureHostKey() ssh.HostKeyCallback { return ssh.InsecureIgnoreHostKey() 
 type Config struct {
 	// Addr is host:port.
 	Addr string
+	// User is the remote login name.
 	User string
+	// Auth is the required authentication key; other signer types are accepted.
 	Auth ssh.Signer
 	// HostKey is required.
 	HostKey ssh.HostKeyCallback
@@ -104,7 +108,8 @@ func (c Config) client() (*ssh.ClientConfig, error) {
 	}, nil
 }
 
-// Client is a connected SSH client.
+// Client is a connected SSH client returned by Dial or WaitReady. Call Close
+// when finished; operation cancellation does not close the shared connection.
 type Client struct {
 	conn         *ssh.Client
 	sftpCommand  string
@@ -112,6 +117,8 @@ type Client struct {
 }
 
 // Dial connects once. ctx covers the TCP connection and the SSH handshake.
+// The returned client remains usable after ctx ends and must be closed by
+// the caller. Config.HostKey must explicitly verify or accept the host key.
 func Dial(ctx context.Context, cfg Config) (*Client, error) {
 	cc, err := cfg.client()
 	if err != nil {
@@ -166,6 +173,7 @@ func Dial(ctx context.Context, cfg Config) (*Client, error) {
 // that waiting cannot fix (invalid configuration, a rejected host key and,
 // unless Config.RetryAuthFailure is set, a rejected key) are returned at once.
 // No connection is left open on failure.
+// Use a bounded ctx; the returned client's lifetime is independent of it.
 func WaitReady(ctx context.Context, cfg Config, interval time.Duration) (*Client, error) {
 	var last error
 	for {
@@ -186,8 +194,9 @@ func WaitReady(ctx context.Context, cfg Config, interval time.Duration) (*Client
 	}
 }
 
-// WaitDisconnected waits until the connection closes or ctx ends. It does not
-// probe the server, close the client, or reconnect.
+// WaitDisconnected returns nil when the connection closes, locally or remotely,
+// or ctx.Err() if waiting is cancelled. It does not probe or reconnect; a silent
+// network failure may remain undetected until ctx expires.
 func (c *Client) WaitDisconnected(ctx context.Context) error {
 	select {
 	case <-c.disconnected:
@@ -197,5 +206,6 @@ func (c *Client) WaitDisconnected(ctx context.Context) error {
 	}
 }
 
-// Close closes the connection.
+// Close closes the connection and all its sessions, releasing pending startup
+// operations. It returns the underlying connection's close error.
 func (c *Client) Close() error { return c.conn.Close() }

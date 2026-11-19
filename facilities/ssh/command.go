@@ -12,7 +12,9 @@ import (
 
 // Result is the outcome of a command.
 type Result struct {
+	// Stdout is captured by Run and nil for RunIO.
 	Stdout []byte
+	// Stderr is captured separately by Run and nil for RunIO.
 	Stderr []byte
 	// ExitCode is the remote exit status, or -1 if unavailable.
 	ExitCode int
@@ -22,6 +24,8 @@ type Result struct {
 
 // Run buffers command output. Nonzero remote exit statuses are returned in
 // Result with a nil error. Transport and I/O errors remain wrapped for errors.As.
+// Unavailable exit statuses are -1. Cancellation follows RunIO's session-only
+// semantics; commands are never retried.
 func (c *Client) Run(ctx context.Context, command string) (Result, error) {
 	var stdout, stderr bytes.Buffer
 	result, err := c.RunIO(ctx, command, nil, &stdout, &stderr)

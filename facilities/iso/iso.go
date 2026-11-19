@@ -28,13 +28,16 @@ var tools = []string{"xorrisofs", "genisoimage", "mkisofs"}
 // Build writes an ISO image with the given volume label to output. The image
 // holds the contents of files. Joliet and Rock Ridge extensions are enabled so
 // that long, mixed-case names survive.
+// It requires xorrisofs, genisoimage or mkisofs in PATH. label must contain
+// 1-32 ASCII letters, digits, underscores or dashes.
 //
 // files must hold only directories and regular files; symbolic links and
 // special files are rejected. files is trusted input that is not modified while
 // Build runs: path checks alone cannot make a concurrently changing directory a
-// safe boundary. ctx bounds both staging and image creation.
+// safe boundary. ctx is checked between entries and cancels image creation.
 //
-// output is replaced if it exists. On failure no partial output is left behind.
+// The output directory must already exist. Existing output is replaced only
+// after a successful build; failed builds leave no partial output.
 func Build(ctx context.Context, output, label string, files fs.FS) error {
 	if !labelPattern.MatchString(label) {
 		return fmt.Errorf("invalid volume label %q: want 1-32 characters from [A-Za-z0-9_-]", label)

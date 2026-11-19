@@ -16,6 +16,7 @@ import (
 // Fetch copies a remote file to dst. Config.SFTPCommand selects a custom
 // server, such as a passwordless sudo command. dst remains caller-owned.
 // Cancellation covers startup and reads without closing other sessions.
+// File-open, copy, file-close and SFTP-close errors are returned.
 func (c *Client) Fetch(ctx context.Context, remotePath string, dst io.Writer) error {
 	if dst == nil {
 		return fmt.Errorf("fetch destination is nil")

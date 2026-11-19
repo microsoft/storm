@@ -38,6 +38,8 @@ func checkVarName(name string) error {
 }
 
 // MarshalMatrix encodes entries as a job-matrix value, {"<leg>": {"<var>": "<value>"}}.
+// Leg names use ASCII letters, digits or underscores, start with a letter, and
+// contain at most 100 characters. Variables follow SetVariable's naming rules.
 // Legs and variables are emitted in sorted order, so output is stable.
 func MarshalMatrix(entries map[string]map[string]string) ([]byte, error) {
 	for leg, vars := range entries {
@@ -54,9 +56,14 @@ func MarshalMatrix(entries map[string]map[string]string) ([]byte, error) {
 	return json.Marshal(entries)
 }
 
-// SetVariable writes a task.setvariable logging command. The name is validated
-// and the value escaped, so neither can inject further properties or commands.
-// Make sure no shell tracing is active when the output is produced by a wrapper.
+// SetVariable writes one newline-terminated task.setvariable command to w.
+// Names must be nonempty and use only ASCII letters, digits, underscores or dots.
+// The prefixes secret, input, endpoint and securefile are reserved (case-insensitive).
+// Values are escaped,
+// not masked as secrets. isOutput enables the task's output-variable scope.
+// Validation and writer errors are returned.
+//
+// Use stdout outside captured test output; disable shell tracing in any wrapper.
 func SetVariable(w io.Writer, name, value string, isOutput bool) error {
 	if err := checkVarName(name); err != nil {
 		return err
@@ -65,7 +72,6 @@ func SetVariable(w io.Writer, name, value string, isOutput bool) error {
 	if isOutput {
 		props += ";isOutput=true"
 	}
-	// One write, so a failing writer never receives half a command.
 	_, err := io.WriteString(w, "##vso[task.setvariable "+props+"]"+escapeData(value)+"\n")
 	return err
 }
