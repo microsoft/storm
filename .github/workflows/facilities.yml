@@ -8,6 +8,9 @@ on:
     branches: [ main, master ]
     paths: [ 'facilities/**', '.github/workflows/facilities.yml' ]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
