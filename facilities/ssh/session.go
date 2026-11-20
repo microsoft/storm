@@ -118,7 +118,7 @@ func (s *streams) wait(ctx context.Context, interrupt <-chan struct{}, work func
 	}()
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return errors.Join(ctx.Err(), s.failure())
 	case <-interrupt:
 		return s.failure()
 	case err := <-done:

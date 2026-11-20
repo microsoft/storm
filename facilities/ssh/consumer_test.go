@@ -323,10 +323,11 @@ func TestUploadAndFetchWithDefaultAndCustomServer(t *testing.T) {
 }
 
 type stalledFileReader struct {
-	inner   sftp.FileReader
-	started chan struct{}
-	release chan struct{}
-	once    sync.Once
+	inner      sftp.FileReader
+	started    chan struct{}
+	release    chan struct{}
+	once       sync.Once
+	stallClose bool
 }
 
 func (r *stalledFileReader) Fileread(request *sftp.Request) (io.ReaderAt, error) {
@@ -343,89 +344,113 @@ type stalledReaderAt struct {
 }
 
 func (r *stalledReaderAt) ReadAt(p []byte, offset int64) (int, error) {
-	r.control.once.Do(func() { close(r.control.started) })
-	<-r.control.release
+	if !r.control.stallClose {
+		r.control.wait()
+	}
 	return r.ReaderAt.ReadAt(p, offset)
 }
 
 func (r *stalledReaderAt) Close() error {
+	if r.control.stallClose {
+		r.control.wait()
+	}
 	if closer, ok := r.ReaderAt.(io.Closer); ok {
 		return closer.Close()
 	}
 	return nil
 }
 
+func (r *stalledFileReader) wait() {
+	r.once.Do(func() { close(r.started) })
+	<-r.release
+}
+
 func TestFetchCancellationDuringRead(t *testing.T) {
-	key, err := GenerateKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	handlers := sftp.InMemHandler()
-	blocked := &stalledFileReader{
-		inner: handlers.FileGet, started: make(chan struct{}), release: make(chan struct{}),
-	}
-	defer close(blocked.release)
-	handlers.FileGet = blocked
-	var channels atomic.Int32
-	addr := serverWithHandler(t, key.Signer.PublicKey(), func(conn *ssh.ServerConn, pending ssh.NewChannel) {
-		if channels.Add(1) > 2 {
-			serveChannel(conn, pending)
-			return
-		}
-		ch, requests, err := pending.Accept()
-		if err != nil {
-			return
-		}
-		defer ch.Close()
-		request, ok := <-requests
-		if !ok {
-			return
-		}
-		_ = request.Reply(true, nil)
-		server := sftp.NewRequestServer(ch, handlers)
-		defer server.Close()
-		_ = server.Serve()
-	})
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	client, err := Dial(ctx, dialCfg(addr, key))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer client.Close()
-	seed, err := sftp.NewClient(client.conn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	file, err := seed.Create("/source")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := file.Write([]byte("payload")); err != nil {
-		t.Fatal(err)
-	}
-	if err := errors.Join(file.Close(), seed.Close()); err != nil {
-		t.Fatal(err)
-	}
-	short, stop := context.WithCancel(ctx)
-	defer stop()
-	done := make(chan error, 1)
-	go func() { done <- client.Fetch(short, "/source", io.Discard) }()
-	select {
-	case <-blocked.started:
-	case <-ctx.Done():
-		t.Fatal("transfer did not reach a file read")
-	}
-	stop()
-	select {
-	case err := <-done:
-		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("wanted cancellation, got %v", err)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("cancelled file read did not return")
-	}
-	if result, err := client.Run(ctx, "echo-ok"); err != nil || result.ExitCode != 0 {
-		t.Fatalf("cancelled transfer affected another session: %+v %v", result, err)
+	for _, stage := range []string{"read", "close"} {
+		t.Run(stage, func(t *testing.T) {
+			key, err := GenerateKey()
+			if err != nil {
+				t.Fatal(err)
+			}
+			handlers := sftp.InMemHandler()
+			blocked := &stalledFileReader{
+				inner: handlers.FileGet, started: make(chan struct{}), release: make(chan struct{}),
+				stallClose: stage == "close",
+			}
+			defer close(blocked.release)
+			handlers.FileGet = blocked
+			var channels atomic.Int32
+			addr := serverWithHandler(t, key.Signer.PublicKey(), func(conn *ssh.ServerConn, pending ssh.NewChannel) {
+				if channels.Add(1) > 2 {
+					serveChannel(conn, pending)
+					return
+				}
+				ch, requests, err := pending.Accept()
+				if err != nil {
+					return
+				}
+				defer ch.Close()
+				request, ok := <-requests
+				if !ok {
+					return
+				}
+				_ = request.Reply(true, nil)
+				server := sftp.NewRequestServer(ch, handlers)
+				defer server.Close()
+				_ = server.Serve()
+			})
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			client, err := Dial(ctx, dialCfg(addr, key))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer client.Close()
+			seed, err := sftp.NewClient(client.conn)
+			if err != nil {
+				t.Fatal(err)
+			}
+			file, err := seed.Create("/source")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := file.Write([]byte("payload")); err != nil {
+				t.Fatal(err)
+			}
+			if err := errors.Join(file.Close(), seed.Close()); err != nil {
+				t.Fatal(err)
+			}
+			short, stop := context.WithCancel(ctx)
+			defer stop()
+			var dst io.Writer = io.Discard
+			if blocked.stallClose {
+				dst = failingWriter{&os.PathError{Op: "write", Path: "artifact", Err: io.ErrClosedPipe}}
+			}
+			done := make(chan error, 1)
+			go func() { done <- client.Fetch(short, "/source", dst) }()
+			select {
+			case <-blocked.started:
+			case <-ctx.Done():
+				t.Fatalf("transfer did not reach file %s", stage)
+			}
+			stop()
+			select {
+			case err := <-done:
+				if !errors.Is(err, context.Canceled) {
+					t.Fatalf("wanted cancellation, got %v", err)
+				}
+				if blocked.stallClose {
+					var pathErr *os.PathError
+					if !errors.Is(err, io.ErrClosedPipe) || !errors.As(err, &pathErr) || pathErr.Path != "artifact" {
+						t.Fatalf("lost the original writer error during cancellation: %v", err)
+					}
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatalf("cancelled file %s did not return", stage)
+			}
+			if result, err := client.Run(ctx, "echo-ok"); err != nil || result.ExitCode != 0 {
+				t.Fatalf("cancelled transfer affected another session: %+v %v", result, err)
+			}
+		})
 	}
 }
