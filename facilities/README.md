@@ -31,15 +31,17 @@ See [usage examples](ssh/example_test.go) for disposable-guest keys and readines
 buffered/streaming commands, uploads, downloads, verified host keys, privileged
 SFTP, and reboot/disconnect handling.
 
-`Dial` and `WaitReady` contexts only bound connection establishment; a connected
-client remains usable after those contexts end. `WaitDisconnected(ctx)` waits
-for an actual connection closure without probing or reconnecting.
+`Dial` checks authentication only. `WaitReady` also runs `true`, retrying until
+SSH execution succeeds. Use `ssh.Config{SkipExecCheck: true}` for SFTP-only hosts.
+Their contexts bound startup; the returned client survives context cancellation.
+`WaitDisconnected(ctx)` waits for an actual connection closure without probing
+or reconnecting.
 
 `Run` buffers stdout/stderr. `RunIO(ctx, command, stdin, stdout, stderr)` streams
 them instead, leaving the result's output fields empty; stdout/stderr may share
 a writer. Nonzero exit statuses are results, not transport errors. Unknown exit
 statuses remain `-1`, and wrapped errors retain their types for `errors.As`.
-Commands are never retried.
+Caller commands are never retried; only `WaitReady`'s fixed probe may repeat.
 
 `Download(ctx, remotePath, dst)` and `Upload(ctx, remotePath, src)` use SFTP.
 The standard subsystem is used unless `Config.SFTPCommand` selects a custom

@@ -123,6 +123,8 @@ func serveChannel(conn *ssh.ServerConn, nch ssh.NewChannel) {
 		_ = r.Reply(true, nil)
 		status := byte(127)
 		switch cmd {
+		case "true":
+			status = 0
 		case "echo-ok":
 			_, _ = ch.Write([]byte("ok\n"))
 			status = 0

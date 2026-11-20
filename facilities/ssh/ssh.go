@@ -1,8 +1,8 @@
 // Package ssh is a small SSH client for talking to freshly booted test machines.
 //
 // It covers ephemeral key generation, waiting for a machine to accept
-// connections, running commands, and transferring files. Commands are never
-// retried: only connection establishment is.
+// connections, running commands, and transferring files. Caller commands are never
+// retried. WaitReady may repeat its fixed, harmless execution probe.
 package ssh
 
 import (
@@ -80,6 +80,9 @@ type Config struct {
 	// machine that may start accepting connections before it has installed the
 	// authorized key.
 	RetryAuthFailure bool
+	// SkipExecCheck makes WaitReady check authentication only, for hosts such
+	// as SFTP-only accounts that reject SSH command execution. Dial ignores it.
+	SkipExecCheck bool
 	// SFTPCommand starts a caller-selected SFTP server instead of the default
 	// subsystem. For sudo transfers, prefer Client.SudoSFTP.
 	// No command is retried.
@@ -194,7 +197,9 @@ func dial(ctx context.Context, cfg Config, connect func(context.Context, string,
 	return client, nil
 }
 
-// WaitReady retries Dial every interval until it succeeds or ctx ends. Errors
+// WaitReady retries Dial and the command "true" until both succeed or ctx ends.
+// Config.SkipExecCheck disables the command probe. It checks SSH execution, not
+// application/service readiness. No caller-supplied command is retried. Errors
 // that waiting cannot fix (invalid configuration, a rejected host key and,
 // unless Config.RetryAuthFailure is set, a rejected key) are returned at once.
 // No connection is left open on failure.
@@ -205,7 +210,17 @@ func WaitReady(ctx context.Context, cfg Config, interval time.Duration) (*Client
 	for {
 		c, err := Dial(ctx, cfg)
 		if err == nil {
-			return c, nil
+			if cfg.SkipExecCheck {
+				return c, nil
+			}
+			result, probeErr := c.RunIO(ctx, "true", nil, nil, nil)
+			if probeErr == nil && result.ExitCode == 0 {
+				return c, nil
+			}
+			if probeErr == nil {
+				probeErr = fmt.Errorf("command exited %d (signal %q)", result.ExitCode, result.Signal)
+			}
+			err = errors.Join(fmt.Errorf("SSH execution check %q: %w", "true", probeErr), c.Close())
 		}
 		if errors.Is(err, errConfig) || errors.Is(err, errHostKey) ||
 			(errors.Is(err, errAuth) && !cfg.RetryAuthFailure) {
