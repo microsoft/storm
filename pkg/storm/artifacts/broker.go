@@ -2,6 +2,8 @@ package artifacts
 
 import "io"
 
+// ArtifactBroker publishes test artifacts. Publication errors mark active tests
+// as errored; failure-hook brokers log errors without changing test results.
 type ArtifactBroker interface {
 	// Allows the test case to publish a log file located at the given path to
 	// the output directory given to the runnable, when provided. If a log
@@ -15,8 +17,7 @@ type ArtifactBroker interface {
 	// `<name>` may be a path, in which case the directories will be created as
 	// needed.
 	//
-	// If the path does not resolve to a file, or any other error occurs, the
-	// test will be marked as an error.
+	// The source must resolve to a regular file.
 	PublishLogFile(name string, source string)
 
 	// Allows the test case to publish an arbitrary artifact located at the
@@ -33,8 +34,7 @@ type ArtifactBroker interface {
 	// If multiple artifacts are published with the same name, only the last one
 	// will be kept.
 	//
-	// If the path does not resolve to a file, or any other error occurs, the
-	// test will be marked as an error.
+	// The source must resolve to a regular file.
 	PublishArtifact(destination string, source string)
 
 	// Same as PublishArtifact but takes the artifact data as a byte slice
@@ -48,9 +48,6 @@ type ArtifactBroker interface {
 	//
 	// If multiple artifacts are published with the same name, only the last one
 	// will be kept.
-	//
-	// If any error occurs while writing the data to a file, the test will be
-	// marked as an error.
 	PublishArtifactData(destination string, data []byte)
 
 	// Similar to PublishArtifactData, but returns a WriteCloser that can be
@@ -64,8 +61,7 @@ type ArtifactBroker interface {
 	// If multiple artifacts are published with the same name, only the last one
 	// will be kept.
 	//
-	// If any error occurs while creating the WriteCloser, the test will be
-	// marked as an error.
+	// In failure hooks, creation errors are logged and return a discard writer.
 	//
 	// Because the returned WriteCloser remains active until it is closed, any
 	// calls to this function with the same destination before the previous
@@ -83,8 +79,7 @@ type ArtifactBroker interface {
 	//   - source: The path to the file to be published as an artifact. It may be
 	//     a relative path, but absolute paths are recommended.
 	//
-	// If the path does not resolve to a file, or any other error occurs, the
-	// test will be marked as an error.
+	// The source must resolve to a regular file.
 	//
 	// Note: implementations do NOT block on this call, so the file at `source`
 	// MUST be kept available until the end of the Azure DevOps job.
