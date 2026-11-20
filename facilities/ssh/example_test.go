@@ -64,7 +64,7 @@ func ExampleClient() {
 	fmt.Print(release.String())
 }
 
-func ExampleDial() {
+func ExampleClient_SudoSFTP() {
 	privateKey, err := os.ReadFile("run-key")
 	if err != nil {
 		log.Fatal(err)
@@ -82,8 +82,6 @@ func ExampleDial() {
 		User:    "tester",
 		Auth:    signer,
 		HostKey: verifyHost,
-		// Optional: use the SFTP server path installed in your guest.
-		SFTPCommand: "sudo -n /usr/libexec/sftp-server",
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -92,7 +90,11 @@ func ExampleDial() {
 		log.Fatal(err)
 	}
 	defer client.Close()
-	if err := client.Fetch(ctx, "/var/log/messages", os.Stdout); err != nil {
+	files, err := client.SudoSFTP()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := files.Fetch(ctx, "/var/log/messages", os.Stdout); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -127,4 +129,34 @@ func ExampleClient_WaitDisconnected() {
 	}
 	// Reconnect with WaitReady and verify the guest booted; disconnect alone
 	// does not prove a successful reboot.
+}
+
+func ExampleSFTP() {
+	key, err := remotessh.GenerateKey()
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Install key.AuthorizedKey when provisioning this disposable guest.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	client, err := remotessh.Dial(ctx, remotessh.Config{
+		Addr: "192.0.2.10:22", User: "tester", Auth: key.Signer,
+		HostKey: remotessh.InsecureHostKey(),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer client.Close()
+
+	// An explicit path skips discovery; omitting it enables auto-discovery.
+	files, err := client.SudoSFTP("/opt/ssh/sftp-server")
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := files.Upload(ctx, "/etc/example.json", strings.NewReader(`{"enabled":true}`)); err != nil {
+		log.Fatal(err)
+	}
+	if err := files.Fetch(ctx, "/etc/example.json", os.Stdout); err != nil {
+		log.Fatal(err)
+	}
 }

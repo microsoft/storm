@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -80,7 +81,8 @@ type Config struct {
 	// authorized key.
 	RetryAuthFailure bool
 	// SFTPCommand starts a caller-selected SFTP server instead of the default
-	// subsystem, for example a passwordless sudo command. No command is retried.
+	// subsystem. For sudo transfers, prefer Client.SudoSFTP.
+	// No command is retried.
 	SFTPCommand string
 }
 
@@ -124,10 +126,13 @@ func (c Config) client() (*ssh.ClientConfig, error) {
 
 // Client is a connected SSH client returned by Dial or WaitReady. Call Close
 // when finished; operation cancellation does not close the shared connection.
+// A Client must not be copied after first use.
 type Client struct {
 	conn         *ssh.Client
 	sftpCommand  string
 	disconnected chan struct{}
+	sudoMu       sync.Mutex
+	sudoPath     string
 }
 
 // Dial connects once. ctx covers the TCP connection and the SSH handshake.

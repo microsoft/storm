@@ -18,11 +18,15 @@ import (
 // Cancellation covers startup and reads without closing other sessions.
 // File-open, copy, file-close and SFTP-close errors are returned.
 func (c *Client) Fetch(ctx context.Context, remotePath string, dst io.Writer) error {
+	return c.fetch(ctx, remotePath, dst, c.sftpCommand)
+}
+
+func (c *Client) fetch(ctx context.Context, remotePath string, dst io.Writer, command string) error {
 	if dst == nil {
 		return fmt.Errorf("fetch destination is nil")
 	}
 	streams := newStreams(nil, dst, nil)
-	return c.transfer(ctx, streams, func(sc *sftp.Client) (err error) {
+	return c.transfer(ctx, streams, command, func(sc *sftp.Client) (err error) {
 		file, err := sc.Open(remotePath)
 		if err != nil {
 			return fmt.Errorf("open %s: %w", remotePath, err)
@@ -43,6 +47,10 @@ func (c *Client) Fetch(ctx context.Context, remotePath string, dst io.Writer) er
 // remains caller-owned; callers must unblock pending reads on cancellation.
 // Abrupt disconnections can leave a private staging directory on the server.
 func (c *Client) Upload(ctx context.Context, remotePath string, src io.Reader) error {
+	return c.upload(ctx, remotePath, src, c.sftpCommand)
+}
+
+func (c *Client) upload(ctx context.Context, remotePath string, src io.Reader, command string) error {
 	if remotePath == "" {
 		return fmt.Errorf("upload path is empty")
 	}
@@ -50,7 +58,7 @@ func (c *Client) Upload(ctx context.Context, remotePath string, src io.Reader) e
 		return fmt.Errorf("upload source is nil")
 	}
 	streams := newStreams(src, nil, nil)
-	return c.transfer(ctx, streams, func(sc *sftp.Client) (err error) {
+	return c.transfer(ctx, streams, command, func(sc *sftp.Client) (err error) {
 		var random [16]byte
 		if _, err := rand.Read(random[:]); err != nil {
 			return err
@@ -90,7 +98,7 @@ func (c *Client) Upload(ctx context.Context, remotePath string, src io.Reader) e
 	})
 }
 
-func (c *Client) transfer(ctx context.Context, streams *streams, work func(*sftp.Client) error) error {
+func (c *Client) transfer(ctx context.Context, streams *streams, command string, work func(*sftp.Client) error) error {
 	session, closeSession, err := c.session(ctx)
 	if err != nil {
 		return fmt.Errorf("open transfer session: %w", err)
@@ -110,10 +118,10 @@ func (c *Client) transfer(ctx context.Context, streams *streams, work func(*sftp
 			return err
 		}
 		go io.Copy(io.Discard, stderr)
-		if c.sftpCommand == "" {
+		if command == "" {
 			err = session.RequestSubsystem("sftp")
 		} else {
-			err = session.Start(c.sftpCommand)
+			err = session.Start(command)
 		}
 		if err != nil {
 			return fmt.Errorf("start sftp: %w", err)
