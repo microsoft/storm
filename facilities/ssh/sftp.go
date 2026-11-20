@@ -49,18 +49,18 @@ func (c *Client) SudoSFTP(serverPath ...string) (*SFTP, error) {
 	return files, nil
 }
 
-// Fetch downloads through sudo using the same ownership, cancellation and error
-// semantics as Client.Fetch. Discovery runs within ctx and is not cached on error.
-func (s *SFTP) Fetch(ctx context.Context, remotePath string, dst io.Writer) error {
+// Download downloads through sudo using the same ownership, cancellation and error
+// semantics as Client.Download. Discovery runs within ctx and is not cached on error.
+func (s *SFTP) Download(ctx context.Context, remotePath string, dst io.Writer) error {
 	if dst == nil {
-		return fmt.Errorf("fetch destination is nil")
+		return fmt.Errorf("download destination is nil")
 	}
 	command, err := s.command(ctx)
 	if err != nil {
 		return err
 	}
-	if err := s.client.fetch(ctx, remotePath, dst, command); err != nil {
-		return fmt.Errorf("sudo SFTP fetch (passwordless sudo required): %w", err)
+	if err := s.client.download(ctx, remotePath, dst, command); err != nil {
+		return fmt.Errorf("sudo SFTP download (passwordless sudo required): %w", err)
 	}
 	return nil
 }

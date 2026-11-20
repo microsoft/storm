@@ -58,7 +58,7 @@ func ExampleClient() {
 		log.Fatal(err)
 	}
 	var release bytes.Buffer
-	if err := client.Fetch(ctx, "/etc/os-release", &release); err != nil {
+	if err := client.Download(ctx, "/etc/os-release", &release); err != nil {
 		log.Fatal(err)
 	}
 	fmt.Print(release.String())
@@ -94,7 +94,7 @@ func ExampleClient_SudoSFTP() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := files.Fetch(ctx, "/var/log/messages", os.Stdout); err != nil {
+	if err := files.Download(ctx, "/var/log/messages", os.Stdout); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -156,7 +156,7 @@ func ExampleSFTP() {
 	if err := files.Upload(ctx, "/etc/example.json", strings.NewReader(`{"enabled":true}`)); err != nil {
 		log.Fatal(err)
 	}
-	if err := files.Fetch(ctx, "/etc/example.json", os.Stdout); err != nil {
+	if err := files.Download(ctx, "/etc/example.json", os.Stdout); err != nil {
 		log.Fatal(err)
 	}
 }

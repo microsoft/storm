@@ -160,8 +160,8 @@ func TestSudoSFTPDiscoversCachesAndKeepsClientDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	var output bytes.Buffer
-	if err := another.Fetch(ctx, remote, &output); err != nil || output.String() != "private" {
-		t.Fatalf("sudo fetch: %q %v", output.String(), err)
+	if err := another.Download(ctx, remote, &output); err != nil || output.String() != "private" {
+		t.Fatalf("sudo download: %q %v", output.String(), err)
 	}
 	if countCommands(fixture.snapshot(), "test -f ") != probes {
 		t.Fatal("a second handle did not reuse the discovered path")
@@ -170,17 +170,17 @@ func TestSudoSFTPDiscoversCachesAndKeepsClientDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := override.Fetch(ctx, remote, io.Discard); err != nil {
+	if err := override.Download(ctx, remote, io.Discard); err != nil {
 		t.Fatal(err)
 	}
-	if err := another.Fetch(ctx, remote, io.Discard); err != nil {
+	if err := another.Download(ctx, remote, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	commands := fixture.snapshot()
 	if commands[len(commands)-1] != "sudo -n -- '/usr/libexec/openssh/sftp-server'" {
 		t.Fatal("explicit override replaced the auto-discovery cache")
 	}
-	if err := client.Fetch(ctx, remote, io.Discard); err != nil {
+	if err := client.Download(ctx, remote, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if countCommands(fixture.snapshot(), "base-server") != 1 {
@@ -204,14 +204,14 @@ func TestSudoSFTPExplicitPathSkipsDiscoveryAndQuotes(t *testing.T) {
 	if err := files.Upload(ctx, remote, strings.NewReader("value")); err != nil {
 		t.Fatal(err)
 	}
-	if err := files.Fetch(ctx, remote, io.Discard); err != nil {
+	if err := files.Download(ctx, remote, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	commands := fixture.snapshot()
 	if len(commands) != 2 || commands[0] != command || commands[1] != command {
 		t.Fatalf("manual path was probed or quoted incorrectly: %q", commands)
 	}
-	if err := client.Fetch(ctx, remote, io.Discard); err != nil {
+	if err := client.Download(ctx, remote, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if countCommands(fixture.snapshot(), "subsystem:sftp") != 1 {
@@ -274,7 +274,7 @@ func TestSudoSFTPDiscoveryCancellationDoesNotPoisonCache(t *testing.T) {
 	short, cancel := context.WithCancel(ctx)
 	defer cancel()
 	done := make(chan error, 1)
-	go func() { done <- files.Fetch(short, "/missing", io.Discard) }()
+	go func() { done <- files.Download(short, "/missing", io.Discard) }()
 	select {
 	case <-fixture.probeStarted:
 	case <-ctx.Done():
@@ -294,7 +294,7 @@ func TestSudoSFTPDiscoveryCancellationDoesNotPoisonCache(t *testing.T) {
 	if err := os.WriteFile(remote, []byte("value"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := files.Fetch(ctx, remote, io.Discard); err != nil {
+	if err := files.Download(ctx, remote, io.Discard); err != nil {
 		t.Fatalf("cancelled discovery poisoned the next transfer: %v", err)
 	}
 }

@@ -13,17 +13,17 @@ import (
 	"github.com/pkg/sftp"
 )
 
-// Fetch copies a remote file to dst. Config.SFTPCommand selects a custom
+// Download copies a remote file to dst. Config.SFTPCommand selects a custom
 // server, such as a passwordless sudo command. dst remains caller-owned.
 // Cancellation covers startup and reads without closing other sessions.
 // File-open, copy, file-close and SFTP-close errors are returned.
-func (c *Client) Fetch(ctx context.Context, remotePath string, dst io.Writer) error {
-	return c.fetch(ctx, remotePath, dst, c.sftpCommand)
+func (c *Client) Download(ctx context.Context, remotePath string, dst io.Writer) error {
+	return c.download(ctx, remotePath, dst, c.sftpCommand)
 }
 
-func (c *Client) fetch(ctx context.Context, remotePath string, dst io.Writer, command string) error {
+func (c *Client) download(ctx context.Context, remotePath string, dst io.Writer, command string) error {
 	if dst == nil {
-		return fmt.Errorf("fetch destination is nil")
+		return fmt.Errorf("download destination is nil")
 	}
 	streams := newStreams(nil, dst, nil)
 	return c.transfer(ctx, streams, command, func(sc *sftp.Client) (err error) {

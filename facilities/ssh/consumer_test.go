@@ -166,7 +166,7 @@ func TestDialContextDoesNotOwnConnectedClient(t *testing.T) {
 }
 
 func TestStartupCancellationKeepsConnectionUsable(t *testing.T) {
-	for _, operation := range []string{"run", "fetch", "upload", "fetch-command", "upload-command"} {
+	for _, operation := range []string{"run", "download", "upload", "download-command", "upload-command"} {
 		for _, stage := range []string{"channel", "request", "version"} {
 			if operation == "run" && stage == "version" {
 				continue
@@ -231,8 +231,8 @@ func TestStartupCancellationKeepsConnectionUsable(t *testing.T) {
 							err = fmt.Errorf("unexpected exit code %d: %w", result.ExitCode, err)
 						}
 						done <- err
-					case strings.HasPrefix(operation, "fetch"):
-						done <- client.Fetch(short, remote, io.Discard)
+					case strings.HasPrefix(operation, "download"):
+						done <- client.Download(short, remote, io.Discard)
 					default:
 						done <- client.Upload(short, remote, strings.NewReader("input"))
 					}
@@ -260,7 +260,7 @@ func TestStartupCancellationKeepsConnectionUsable(t *testing.T) {
 	}
 }
 
-func TestUploadAndFetchWithDefaultAndCustomServer(t *testing.T) {
+func TestUploadAndDownloadWithDefaultAndCustomServer(t *testing.T) {
 	for _, command := range []string{"", "sudo -n /test/sftp-server"} {
 		t.Run(command, func(t *testing.T) {
 			client, ctx := testClient(t, command)
@@ -287,7 +287,7 @@ func TestUploadAndFetchWithDefaultAndCustomServer(t *testing.T) {
 					t.Fatal(err)
 				}
 				var output bytes.Buffer
-				if err := client.Fetch(ctx, remote, &output); err != nil {
+				if err := client.Download(ctx, remote, &output); err != nil {
 					t.Fatal(err)
 				}
 				if output.String() != content {
@@ -303,7 +303,7 @@ func TestUploadAndFetchWithDefaultAndCustomServer(t *testing.T) {
 				t.Fatalf("upload left staging files: %v %v", entries, err)
 			}
 			sentinel := errors.New("destination writer failed")
-			if err := client.Fetch(ctx, remote, failingWriter{sentinel}); !errors.Is(err, sentinel) {
+			if err := client.Download(ctx, remote, failingWriter{sentinel}); !errors.Is(err, sentinel) {
 				t.Fatalf("lost writer error: %v", err)
 			}
 			sentinel = errors.New("source reader failed")
@@ -365,7 +365,7 @@ func (r *stalledFileReader) wait() {
 	<-r.release
 }
 
-func TestFetchCancellationDuringRead(t *testing.T) {
+func TestDownloadCancellationDuringRead(t *testing.T) {
 	for _, stage := range []string{"read", "close"} {
 		t.Run(stage, func(t *testing.T) {
 			key, err := GenerateKey()
@@ -427,7 +427,7 @@ func TestFetchCancellationDuringRead(t *testing.T) {
 				dst = failingWriter{&os.PathError{Op: "write", Path: "artifact", Err: io.ErrClosedPipe}}
 			}
 			done := make(chan error, 1)
-			go func() { done <- client.Fetch(short, "/source", dst) }()
+			go func() { done <- client.Download(short, "/source", dst) }()
 			select {
 			case <-blocked.started:
 			case <-ctx.Done():

@@ -41,7 +41,7 @@ a writer. Nonzero exit statuses are results, not transport errors. Unknown exit
 statuses remain `-1`, and wrapped errors retain their types for `errors.As`.
 Commands are never retried.
 
-`Fetch(ctx, remotePath, dst)` and `Upload(ctx, remotePath, src)` use SFTP.
+`Download(ctx, remotePath, dst)` and `Upload(ctx, remotePath, src)` use SFTP.
 The standard subsystem is used unless `Config.SFTPCommand` selects a custom
 server command. Uploads stage files
 privately with mode `0600`; replacing an existing file requires the server's
@@ -62,12 +62,12 @@ files, err := client.SudoSFTP()
 if err != nil {
     return err
 }
-return files.Fetch(ctx, "/var/log/messages", writer)
+return files.Download(ctx, "/var/log/messages", writer)
 ```
 
 The first transfer probes standard OpenSSH server locations and caches the
 discovered path per SSH client. To bypass discovery, use
-`client.SudoSFTP("/opt/ssh/sftp-server")`. Both handles support `Fetch` and `Upload`;
+`client.SudoSFTP("/opt/ssh/sftp-server")`. Both handles support `Download` and `Upload`;
 the parent client's defaults stay unchanged.
 
 Requires passwordless sudo and a standalone SFTP server. PATH is not searched,

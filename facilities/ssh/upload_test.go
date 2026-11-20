@@ -119,7 +119,7 @@ func TestUploadFailurePreservesDestination(t *testing.T) {
 				t.Error("upload reported success after failure")
 			}
 			var got bytes.Buffer
-			if err := client.Fetch(ctx, "/config", &got); err != nil {
+			if err := client.Download(ctx, "/config", &got); err != nil {
 				t.Fatal(err)
 			}
 			if got.String() != "original" {

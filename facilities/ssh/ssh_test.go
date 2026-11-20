@@ -283,7 +283,7 @@ func TestWaitReadyStopsWhenContextEnds(t *testing.T) {
 	}
 }
 
-func TestFetchCopiesRemoteFile(t *testing.T) {
+func TestDownloadCopiesRemoteFile(t *testing.T) {
 	key, _ := GenerateKey()
 	addr := server(t, key.Signer.PublicKey())
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -300,10 +300,10 @@ func TestFetchCopiesRemoteFile(t *testing.T) {
 	defer c.Close()
 
 	var buf bytes.Buffer
-	if err := c.Fetch(ctx, path, &buf); err != nil || buf.String() != "payload" {
-		t.Errorf("fetch: %q, %v", buf.String(), err)
+	if err := c.Download(ctx, path, &buf); err != nil || buf.String() != "payload" {
+		t.Errorf("download: %q, %v", buf.String(), err)
 	}
-	if err := c.Fetch(ctx, path+".missing", &buf); err == nil {
+	if err := c.Download(ctx, path+".missing", &buf); err == nil {
 		t.Error("missing file did not fail")
 	}
 }
