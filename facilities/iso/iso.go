@@ -12,7 +12,6 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -35,6 +34,7 @@ var tools = []string{"xorrisofs", "genisoimage", "mkisofs"}
 // special files are rejected. files is trusted input that is not modified while
 // Build runs: path checks alone cannot make a concurrently changing directory a
 // safe boundary. ctx is checked between entries and cancels image creation.
+// File names must be representable as local paths on the host.
 //
 // The output directory must already exist. Existing output is replaced only
 // after a successful build; failed builds leave no partial output.
@@ -101,10 +101,11 @@ func stage(ctx context.Context, dir string, files fs.FS) error {
 		if name == "." {
 			return nil
 		}
-		if !fs.ValidPath(name) || path.IsAbs(name) {
-			return fmt.Errorf("invalid path %q", name)
+		local, err := filepath.Localize(name)
+		if err != nil {
+			return fmt.Errorf("invalid path %q: %w", name, err)
 		}
-		dst := filepath.Join(dir, filepath.FromSlash(name))
+		dst := filepath.Join(dir, local)
 		if d.IsDir() {
 			return os.MkdirAll(dst, 0o755)
 		}

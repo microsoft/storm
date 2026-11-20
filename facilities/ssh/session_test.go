@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"os"
 	"testing"
 	"time"
@@ -58,4 +59,45 @@ func TestWaitCollectsWriteErrorAfterCancellation(t *testing.T) {
 		t.Fatal("operation did not finish")
 	}
 	<-workDone
+}
+
+func TestWaitPreservesCancellationDuringFinalization(t *testing.T) {
+	writer := blockedErrorWriter{started: make(chan struct{}), release: make(chan struct{})}
+	defer close(writer.release)
+	streams := newStreams(nil, writer, nil)
+	writeDone := make(chan struct{})
+	go func() {
+		defer close(writeDone)
+		_, _ = (streamWriter{streams: streams}).Write([]byte("output"))
+	}()
+	<-writer.started
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	workDone := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		done <- streams.wait(ctx, nil, func() error {
+			close(workDone)
+			return net.ErrClosed
+		})
+	}()
+	<-workDone
+	select {
+	case err := <-done:
+		t.Fatalf("returned before output detached: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	cancel()
+	writer.release <- struct{}{}
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) || !errors.Is(err, net.ErrClosed) ||
+			!errors.Is(err, io.ErrClosedPipe) {
+			t.Fatalf("lost cancellation or operation errors: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("operation did not finish")
+	}
+	<-writeDone
 }

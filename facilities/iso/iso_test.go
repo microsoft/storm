@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"testing/fstest"
 )
@@ -91,6 +92,24 @@ func TestBuildRejectsSymlinks(t *testing.T) {
 		}
 		if _, err := os.Stat(out); err == nil {
 			t.Errorf("output left behind for %q", name)
+		}
+	}
+}
+
+func TestStageLocalPaths(t *testing.T) {
+	dir := t.TempDir()
+	files := fstest.MapFS{"nested/config.json": {Data: []byte("config")}}
+	if runtime.GOOS != "windows" {
+		files[`back\slash`] = &fstest.MapFile{Data: []byte("local")}
+		files["name:with:colons"] = &fstest.MapFile{Data: []byte("local")}
+	}
+	if err := stage(context.Background(), dir, files); err != nil {
+		t.Fatal(err)
+	}
+	for name, file := range files {
+		data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(name)))
+		if err != nil || !bytes.Equal(data, file.Data) {
+			t.Errorf("%s: got %q, err=%v", name, data, err)
 		}
 	}
 }

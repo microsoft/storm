@@ -107,8 +107,10 @@ func (s *streams) detach() {
 func (s *streams) wait(ctx context.Context, interrupt <-chan struct{}, work func() error) (err error) {
 	defer func() {
 		s.detach()
-		if failure := s.failure(); failure != nil && !errors.Is(err, failure) {
-			err = errors.Join(err, failure)
+		for _, cause := range []error{s.failure(), ctx.Err()} {
+			if cause != nil && !errors.Is(err, cause) {
+				err = errors.Join(err, cause)
+			}
 		}
 	}()
 	if err := ctx.Err(); err != nil {
