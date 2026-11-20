@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"os"
 	"testing"
 	"time"
 )
@@ -58,6 +59,7 @@ func TestDialSharesOneAttemptDeadline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	local, remote := net.Pipe()
 	conn := &deadlineConn{Conn: local}
 	done := make(chan struct{})
@@ -86,5 +88,38 @@ func TestDialSharesOneAttemptDeadline(t *testing.T) {
 	}
 	if attemptDeadline.IsZero() || !conn.deadline.Equal(attemptDeadline) {
 		t.Fatalf("handshake deadline %s differs from connection deadline %s", conn.deadline, attemptDeadline)
+	}
+}
+
+type delayedDeadlineContext struct {
+	context.Context
+	deadline time.Time
+}
+
+func (c delayedDeadlineContext) Deadline() (time.Time, bool) { return c.deadline, true }
+
+func TestDialNormalizesDeadlineBeforeContextTimer(t *testing.T) {
+	key, err := GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, stage := range []string{"connect", "handshake"} {
+		t.Run(stage, func(t *testing.T) {
+			local, remote := net.Pipe()
+			defer local.Close()
+			defer remote.Close()
+			ctx := delayedDeadlineContext{Context: context.Background(), deadline: time.Now().Add(-time.Second)}
+			connect := func(context.Context, string, string) (net.Conn, error) {
+				if stage == "connect" {
+					return nil, &net.OpError{Op: "dial", Net: "tcp", Err: os.ErrDeadlineExceeded}
+				}
+				return local, nil
+			}
+			_, err := dial(ctx, dialCfg("127.0.0.1:22", key), connect)
+			var timeout net.Error
+			if !errors.Is(err, context.DeadlineExceeded) || !errors.As(err, &timeout) || !timeout.Timeout() {
+				t.Fatalf("lost deadline or underlying socket timeout: %v", err)
+			}
+		})
 	}
 }

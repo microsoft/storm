@@ -144,6 +144,7 @@ func dial(ctx context.Context, cfg Config, connect func(context.Context, string,
 	}
 	attemptCtx, cancel := context.WithTimeout(ctx, cc.Timeout)
 	defer cancel()
+	deadline, _ := attemptCtx.Deadline()
 	var hostKeyErr error
 	check := cc.HostKeyCallback
 	cc.HostKeyCallback = func(host string, remote net.Addr, key ssh.PublicKey) error {
@@ -153,12 +154,11 @@ func dial(ctx context.Context, cfg Config, connect func(context.Context, string,
 
 	nc, err := connect(attemptCtx, "tcp", cfg.Addr)
 	if err != nil {
-		return nil, fmt.Errorf("dial %s: %w", cfg.Addr, err)
+		return nil, fmt.Errorf("dial %s: %w", cfg.Addr, errors.Join(err, deadlineError(attemptCtx, deadline)))
 	}
 	// Closing the connection is what interrupts a handshake in progress.
 	stop := context.AfterFunc(attemptCtx, func() { nc.Close() })
 
-	deadline, _ := attemptCtx.Deadline()
 	_ = nc.SetDeadline(deadline)
 	sc, chans, reqs, err := ssh.NewClientConn(nc, cfg.Addr, cc)
 	if err == nil {
@@ -166,8 +166,8 @@ func dial(ctx context.Context, cfg Config, connect func(context.Context, string,
 	}
 	if !stop() || err != nil {
 		nc.Close()
-		if ctxErr := attemptCtx.Err(); ctxErr != nil {
-			return nil, fmt.Errorf("handshake with %s: %w", cfg.Addr, ctxErr)
+		if ctxErr := deadlineError(attemptCtx, deadline); ctxErr != nil {
+			return nil, fmt.Errorf("handshake with %s: %w", cfg.Addr, errors.Join(err, ctxErr))
 		}
 		switch {
 		case hostKeyErr != nil:
@@ -230,3 +230,13 @@ func (c *Client) WaitDisconnected(ctx context.Context) error {
 // Close closes the connection and all its sessions, releasing pending startup
 // operations. It returns the underlying connection's close error.
 func (c *Client) Close() error { return c.conn.Close() }
+
+func deadlineError(ctx context.Context, deadline time.Time) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if !time.Now().Before(deadline) {
+		return context.DeadlineExceeded
+	}
+	return nil
+}

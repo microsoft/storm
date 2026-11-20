@@ -22,7 +22,6 @@ func (c *Client) Fetch(ctx context.Context, remotePath string, dst io.Writer) er
 		return fmt.Errorf("fetch destination is nil")
 	}
 	streams := newStreams(nil, dst, nil)
-	defer streams.detach()
 	return c.transfer(ctx, streams, func(sc *sftp.Client) (err error) {
 		file, err := sc.Open(remotePath)
 		if err != nil {
@@ -51,7 +50,6 @@ func (c *Client) Upload(ctx context.Context, remotePath string, src io.Reader) e
 		return fmt.Errorf("upload source is nil")
 	}
 	streams := newStreams(src, nil, nil)
-	defer streams.detach()
 	return c.transfer(ctx, streams, func(sc *sftp.Client) (err error) {
 		var random [16]byte
 		if _, err := rand.Read(random[:]); err != nil {

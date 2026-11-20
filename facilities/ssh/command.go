@@ -50,7 +50,6 @@ func (c *Client) RunIO(ctx context.Context, command string, stdin io.Reader, std
 	}
 	defer closeSession()
 	streams := newStreams(stdin, stdout, stderr)
-	defer streams.detach()
 	if stdin != nil {
 		session.Stdin = streams
 	}

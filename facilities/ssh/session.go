@@ -104,7 +104,13 @@ func (s *streams) detach() {
 	s.inputMu.Unlock()
 }
 
-func (s *streams) wait(ctx context.Context, interrupt <-chan struct{}, work func() error) error {
+func (s *streams) wait(ctx context.Context, interrupt <-chan struct{}, work func() error) (err error) {
+	defer func() {
+		s.detach()
+		if failure := s.failure(); failure != nil && !errors.Is(err, failure) {
+			err = errors.Join(err, failure)
+		}
+	}()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -118,11 +124,11 @@ func (s *streams) wait(ctx context.Context, interrupt <-chan struct{}, work func
 	}()
 	select {
 	case <-ctx.Done():
-		return errors.Join(ctx.Err(), s.failure())
+		return ctx.Err()
 	case <-interrupt:
 		return s.failure()
 	case err := <-done:
-		return errors.Join(err, s.failure())
+		return err
 	}
 }
 
