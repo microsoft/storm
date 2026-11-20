@@ -2,7 +2,7 @@
 
 Optional building blocks for storm test suites. `facilities` is its own Go
 module, so importing it does not add its dependencies to storm itself.
-Requires Go 1.24 or newer. Module releases use `facilities/v<version>` tags;
+Requires Go 1.26 or newer. Module releases use `facilities/v<version>` tags;
 Storm core tags do not release this module.
 
 | Package | Purpose |
