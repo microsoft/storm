@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/jstemmer/go-junit-report/v2/junit"
 	"github.com/microsoft/storm/internal/artifacts"
 	"github.com/microsoft/storm/internal/testmgr"
 	"github.com/microsoft/storm/pkg/storm/core"
@@ -103,7 +104,7 @@ func TestProduceJUnitXMLSanitizesAndSetsClassname(t *testing.T) {
 	out := filepath.Join(dir, "report.junit.xml")
 
 	reporter := NewTestReporter(tm)
-	if err := reporter.ProduceJUnitXML(out); err != nil {
+	if err := reporter.ProduceJUnitXML(out, false); err != nil {
 		t.Fatalf("ProduceJUnitXML: %v", err)
 	}
 
@@ -146,5 +147,93 @@ func TestProduceJUnitXMLSanitizesAndSetsClassname(t *testing.T) {
 		if c.SystemOut != "" && !strings.Contains(c.SystemOut, "]]>") {
 			t.Errorf("testcase %q: expected system-out to preserve ']]>' after round-trip, got %q", c.Name, c.SystemOut)
 		}
+	}
+}
+
+func TestProduceJUnitXMLOmitSkipped(t *testing.T) {
+	cases := map[string]core.TestCaseFunction{
+		"passed":  func(core.TestCase) error { return nil },
+		"skipped": func(tc core.TestCase) error { tc.Skip("not applicable"); return nil },
+		"skipAll": func(tc core.TestCase) error { tc.SkipAll("not applicable"); return nil },
+		"failed":  func(tc core.TestCase) error { tc.Fail("failed"); return nil },
+		"errored": func(tc core.TestCase) error { tc.Error(os.ErrNotExist); return nil },
+		"notRun":  func(core.TestCase) error { return nil },
+	}
+	for _, tt := range []struct {
+		name        string
+		omitSkipped bool
+		allSkipped  bool
+		wantTests   int
+		wantSkipped int
+		wantFailed  int
+		wantErrors  int
+	}{
+		{name: "default", wantTests: 6, wantSkipped: 3, wantFailed: 1, wantErrors: 1},
+		{name: "omit", omitSkipped: true, wantTests: 4, wantSkipped: 1, wantFailed: 1, wantErrors: 1},
+		{name: "all skipped", omitSkipped: true, allSkipped: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			suite := newFakeSuite()
+			selected := cases
+			if tt.allSkipped {
+				selected = map[string]core.TestCaseFunction{"skipped": cases["skipped"], "skipAll": cases["skipAll"]}
+			}
+			am, err := artifacts.NewArtifactManager(suite, nil, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tm, err := testmgr.NewStormTestManager(suite, &fakeRegistrant{cases: selected}, am)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, c := range tm.TestCases() {
+				if c.Name() == "notRun" {
+					c.MarkNotRun("dependency failure")
+				} else {
+					runCase(c)
+				}
+			}
+			reporter := NewTestReporter(tm)
+			summary := reporter.Summary()
+			out := filepath.Join(t.TempDir(), "report.xml")
+			if err := reporter.ProduceJUnitXML(out, tt.omitSkipped); err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(out)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var report junit.Testsuites
+			if err := xml.Unmarshal(data, &report); err != nil {
+				t.Fatal(err)
+			}
+			if len(report.Suites) != 1 {
+				t.Fatalf("got %d suites, want 1", len(report.Suites))
+			}
+			ts := report.Suites[0]
+			if report.Tests != tt.wantTests || ts.Tests != tt.wantTests || len(ts.Testcases) != tt.wantTests {
+				t.Errorf("test counts: root=%d suite=%d cases=%d, want %d", report.Tests, ts.Tests, len(ts.Testcases), tt.wantTests)
+			}
+			if report.Skipped != tt.wantSkipped || ts.Skipped != tt.wantSkipped {
+				t.Errorf("skipped counts: root=%d suite=%d, want %d", report.Skipped, ts.Skipped, tt.wantSkipped)
+			}
+			if report.Failures != tt.wantFailed || ts.Failures != tt.wantFailed || report.Errors != tt.wantErrors || ts.Errors != tt.wantErrors {
+				t.Errorf("unexpected failure/error counts: root=%d/%d suite=%d/%d", report.Failures, report.Errors, ts.Failures, ts.Errors)
+			}
+			for _, tc := range ts.Testcases {
+				if tt.omitSkipped && (tc.Name == "skipped" || tc.Name == "skipAll") {
+					t.Errorf("intentional skip %q was included", tc.Name)
+				}
+				if tc.Name == "notRun" && (tc.Skipped == nil || tc.Skipped.Type != "NotRun") {
+					t.Errorf("not-run status was changed: %+v", tc)
+				}
+			}
+			if reporter.Summary() != summary {
+				t.Error("JUnit filtering changed the run summary")
+			}
+			if (reporter.ExitError() != nil) != (tt.wantFailed+tt.wantErrors > 0) {
+				t.Error("JUnit filtering changed the exit result")
+			}
+		})
 	}
 }

@@ -25,6 +25,7 @@ func (cmd *HelperCmd) Run(suite core.SuiteContext) error {
 		cmd.Common.PauseCleanup,
 		cmd.Common.LogDir,
 		cmd.Common.JUnit,
+		cmd.Common.JUnitOmitSkipped,
 		cmd.Common.Output,
 	)
 }

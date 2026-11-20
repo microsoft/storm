@@ -19,7 +19,7 @@ func toSecondsStr(d time.Duration) string {
 	return strconv.FormatFloat(d.Seconds(), 'f', 6, 64)
 }
 
-func (tr *TestReporter) ProduceJUnitXML(filename string) error {
+func (tr *TestReporter) ProduceJUnitXML(filename string, omitSkipped bool) error {
 	testSuites := junit.Testsuites{
 		Name: tr.testManager.Suite().Name(),
 		Time: toSecondsStr(tr.testManager.Duration()),
@@ -31,6 +31,10 @@ func (tr *TestReporter) ProduceJUnitXML(filename string) error {
 	}
 
 	for _, testCase := range tr.testManager.TestCases() {
+		if omitSkipped && testCase.Status().Skipped() {
+			continue
+		}
+
 		// Fill in basic properties. Classname is populated with the enclosing
 		// registrant (scenario/helper) name: consumers such as Azure DevOps key
 		// test identity on classname + name, so an empty classname causes
