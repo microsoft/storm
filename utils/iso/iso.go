@@ -92,6 +92,10 @@ func findTool() (string, error) {
 
 // stage copies files into dir, rejecting names that could escape it.
 func stage(ctx context.Context, dir string, files fs.FS) error {
+	stagingInfo, err := os.Stat(dir)
+	if err != nil {
+		return err
+	}
 	return fs.WalkDir(files, ".", func(name string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -111,6 +115,14 @@ func stage(ctx context.Context, dir string, files fs.FS) error {
 		}
 		dst := filepath.Join(dir, local)
 		if d.IsDir() {
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+			// Staging may be inside the source tree; never copy it into itself.
+			if os.SameFile(stagingInfo, info) {
+				return fs.SkipDir
+			}
 			return os.MkdirAll(dst, 0o755)
 		}
 		if !d.Type().IsRegular() {

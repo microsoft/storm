@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"testing"
 	"testing/fstest"
+	"time"
 )
 
 func requireTool(t *testing.T) {
@@ -178,5 +179,29 @@ func TestStageRejectsNonDirectoryRoot(t *testing.T) {
 				t.Fatal("non-directory filesystem root accepted")
 			}
 		})
+	}
+}
+
+func TestStageInsideSource(t *testing.T) {
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "config"), []byte("seed"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(src, "staging")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := stage(ctx, dir, os.DirFS(src)); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, "config"))
+	if err != nil || string(got) != "seed" {
+		t.Fatalf("staged config: %q %v", got, err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 1 || entries[0].Name() != "config" {
+		t.Fatalf("staging copied itself: %v %v", entries, err)
 	}
 }
