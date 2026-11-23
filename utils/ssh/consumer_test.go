@@ -328,6 +328,7 @@ type stalledFileReader struct {
 	release    chan struct{}
 	once       sync.Once
 	stallClose bool
+	readErr    error
 }
 
 func (r *stalledFileReader) Fileread(request *sftp.Request) (io.ReaderAt, error) {
@@ -344,6 +345,9 @@ type stalledReaderAt struct {
 }
 
 func (r *stalledReaderAt) ReadAt(p []byte, offset int64) (int, error) {
+	if r.control.readErr != nil {
+		return 0, r.control.readErr
+	}
 	if !r.control.stallClose {
 		r.control.wait()
 	}
@@ -366,7 +370,7 @@ func (r *stalledFileReader) wait() {
 }
 
 func TestDownloadCancellationDuringRead(t *testing.T) {
-	for _, stage := range []string{"read", "close"} {
+	for _, stage := range []string{"read", "close", "remote error/close"} {
 		t.Run(stage, func(t *testing.T) {
 			key, err := GenerateKey()
 			if err != nil {
@@ -375,7 +379,10 @@ func TestDownloadCancellationDuringRead(t *testing.T) {
 			handlers := sftp.InMemHandler()
 			blocked := &stalledFileReader{
 				inner: handlers.FileGet, started: make(chan struct{}), release: make(chan struct{}),
-				stallClose: stage == "close",
+				stallClose: stage != "read",
+			}
+			if stage == "remote error/close" {
+				blocked.readErr = os.ErrPermission
 			}
 			defer close(blocked.release)
 			handlers.FileGet = blocked
@@ -423,7 +430,7 @@ func TestDownloadCancellationDuringRead(t *testing.T) {
 			short, stop := context.WithCancel(ctx)
 			defer stop()
 			var dst io.Writer = io.Discard
-			if blocked.stallClose {
+			if stage == "close" {
 				dst = failingWriter{&os.PathError{Op: "write", Path: "artifact", Err: io.ErrClosedPipe}}
 			}
 			done := make(chan error, 1)
@@ -439,10 +446,16 @@ func TestDownloadCancellationDuringRead(t *testing.T) {
 				if !errors.Is(err, context.Canceled) {
 					t.Fatalf("wanted cancellation, got %v", err)
 				}
-				if blocked.stallClose {
+				if stage == "close" {
 					var pathErr *os.PathError
 					if !errors.Is(err, io.ErrClosedPipe) || !errors.As(err, &pathErr) || pathErr.Path != "artifact" {
 						t.Fatalf("lost the original writer error during cancellation: %v", err)
+					}
+				}
+				if blocked.readErr != nil {
+					var status *sftp.StatusError
+					if !errors.As(err, &status) || status.FxCode() != sftp.ErrSSHFxFailure {
+						t.Fatalf("lost the remote read error during cancellation: %v", err)
 					}
 				}
 			case <-time.After(2 * time.Second):

@@ -81,6 +81,14 @@ func (s *streams) failure() error {
 	}
 }
 
+func (s *streams) collectCleanup(err *error, cleanup func() error) {
+	// Record the existing error before cleanup can block.
+	if *err != nil {
+		s.fail(*err)
+	}
+	*err = errors.Join(*err, cleanup())
+}
+
 func (s *streams) Read(p []byte) (int, error) {
 	s.inputMu.Lock()
 	input := s.input

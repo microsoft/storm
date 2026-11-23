@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -31,7 +30,7 @@ func (c *Client) download(ctx context.Context, remotePath string, dst io.Writer,
 		if err != nil {
 			return fmt.Errorf("open %s: %w", remotePath, err)
 		}
-		defer func() { err = errors.Join(err, file.Close()) }()
+		defer streams.collectCleanup(&err, file.Close)
 		_, err = io.Copy(streamWriter{streams: streams}, file)
 		return err
 	})
@@ -67,7 +66,7 @@ func (c *Client) upload(ctx context.Context, remotePath string, src io.Reader, c
 		if err := sc.Mkdir(dir); err != nil {
 			return err
 		}
-		defer func() { err = errors.Join(err, sc.RemoveDirectory(dir)) }()
+		defer streams.collectCleanup(&err, func() error { return sc.RemoveDirectory(dir) })
 		if err := sc.Chmod(dir, 0o700); err != nil {
 			return err
 		}
@@ -76,17 +75,20 @@ func (c *Client) upload(ctx context.Context, remotePath string, src io.Reader, c
 		if err != nil {
 			return err
 		}
-		defer func() {
-			if removeErr := sc.Remove(temporary); removeErr != nil && !os.IsNotExist(removeErr) {
-				err = errors.Join(err, removeErr)
+		defer streams.collectCleanup(&err, func() error {
+			removeErr := sc.Remove(temporary)
+			if os.IsNotExist(removeErr) {
+				return nil
 			}
-		}()
+			return removeErr
+		})
 		writeErr := file.Chmod(0o600)
 		if writeErr == nil {
 			_, writeErr = io.Copy(file, streams)
 		}
-		if err := errors.Join(writeErr, file.Close()); err != nil {
-			return err
+		streams.collectCleanup(&writeErr, file.Close)
+		if writeErr != nil {
+			return writeErr
 		}
 		if err := ctx.Err(); err != nil {
 			return err
@@ -130,7 +132,7 @@ func (c *Client) transfer(ctx context.Context, streams *streams, command string,
 		if err != nil {
 			return fmt.Errorf("negotiate sftp: %w", err)
 		}
-		defer func() { err = errors.Join(err, sc.Close()) }()
+		defer streams.collectCleanup(&err, sc.Close)
 		if err := ctx.Err(); err != nil {
 			return err
 		}
