@@ -229,7 +229,7 @@ func WaitReady(ctx context.Context, cfg Config, interval time.Duration) (*Client
 		last = err
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("waiting for ssh on %s: %w (last attempt: %v)", cfg.Addr, ctx.Err(), last)
+			return nil, fmt.Errorf("waiting for ssh on %s: %w (last attempt: %w)", cfg.Addr, ctx.Err(), last)
 		case <-time.After(interval):
 		}
 	}

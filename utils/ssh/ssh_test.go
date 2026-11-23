@@ -280,8 +280,10 @@ func TestWaitReadyStopsWhenContextEnds(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 	cfg := Config{Addr: addr, User: "core", Auth: key.Signer, HostKey: InsecureHostKey(), DialTimeout: 100 * time.Millisecond}
-	if _, err := WaitReady(ctx, cfg, 50*time.Millisecond); err == nil {
-		t.Fatal("expected an error")
+	_, err := WaitReady(ctx, cfg, 50*time.Millisecond)
+	var dialErr *net.OpError
+	if !errors.Is(err, context.DeadlineExceeded) || !errors.As(err, &dialErr) {
+		t.Fatalf("lost deadline or underlying dial error: %v", err)
 	}
 }
 

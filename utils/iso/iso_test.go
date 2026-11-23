@@ -3,6 +3,7 @@ package iso
 import (
 	"bytes"
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -111,5 +112,26 @@ func TestStageLocalPaths(t *testing.T) {
 		if err != nil || !bytes.Equal(data, file.Data) {
 			t.Errorf("%s: got %q, err=%v", name, data, err)
 		}
+	}
+}
+
+func TestStageRejectsNonDirectoryRoot(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		mode fs.FileMode
+	}{
+		{"file", 0},
+		{"symlink", fs.ModeSymlink},
+		{"pipe", fs.ModeNamedPipe},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			files, err := fs.Sub(fstest.MapFS{"root": {Mode: tt.mode}}, "root")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := stage(context.Background(), t.TempDir(), files); err == nil {
+				t.Fatal("non-directory filesystem root accepted")
+			}
+		})
 	}
 }

@@ -30,11 +30,12 @@ var tools = []string{"xorrisofs", "genisoimage", "mkisofs"}
 // It requires xorrisofs, genisoimage or mkisofs in PATH. label must contain
 // 1-32 ASCII letters, digits, underscores or dashes.
 //
-// files must hold only directories and regular files; symbolic links and
-// special files are rejected. files is trusted input that is not modified while
-// Build runs: path checks alone cannot make a concurrently changing directory a
-// safe boundary. ctx is checked between entries and cancels image creation.
-// File names must be representable as local paths on the host.
+// files must be rooted at a directory and hold only directories and regular
+// files; symbolic links and special files are rejected. files is trusted input
+// that is not modified while Build runs: path checks alone cannot make a
+// concurrently changing directory a safe boundary. ctx is checked between entries
+// and cancels image creation. File names must be representable as local paths
+// on the host.
 //
 // The output directory must already exist. Existing output is replaced only
 // after a successful build; failed builds leave no partial output.
@@ -99,6 +100,9 @@ func stage(ctx context.Context, dir string, files fs.FS) error {
 			return err
 		}
 		if name == "." {
+			if !d.IsDir() {
+				return fmt.Errorf("filesystem root is a %s, not a directory", d.Type().Type())
+			}
 			return nil
 		}
 		local, err := filepath.Localize(name)
