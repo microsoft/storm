@@ -3,8 +3,10 @@ package iso
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -21,6 +23,9 @@ func requireTool(t *testing.T) {
 func TestBuildWritesLabelAndFiles(t *testing.T) {
 	requireTool(t)
 	out := filepath.Join(t.TempDir(), "seed.iso")
+	if err := os.WriteFile(out, []byte("old image"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	files := fstest.MapFS{
 		"ignition/config.ign": {Data: []byte(`{"ignition":{"version":"3.3.0"}}`)},
 		"Mixed_Case.txt":      {Data: []byte("hello")},
@@ -66,6 +71,46 @@ func TestBuildLeavesNoOutputOnFailure(t *testing.T) {
 	entries, _ := os.ReadDir(dir)
 	if len(entries) != 0 {
 		t.Errorf("leftover files after failure: %v", entries)
+	}
+}
+
+func TestBuildPreservesOutputOnAuthoringFailure(t *testing.T) {
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binary, err := os.ReadFile(executable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	toolDir := t.TempDir()
+	tool := "xorrisofs"
+	if runtime.GOOS == "windows" {
+		tool += ".exe"
+	}
+	// The test executable rejects the authoring flags and exits unsuccessfully.
+	if err := os.WriteFile(filepath.Join(toolDir, tool), binary, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", toolDir)
+	dir := t.TempDir()
+	out := filepath.Join(dir, "seed.iso")
+	original := []byte("original image")
+	if err := os.WriteFile(out, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err = Build(context.Background(), out, "SEED", fstest.MapFS{"config": {Data: []byte("new")}})
+	var failure *exec.ExitError
+	if !errors.As(err, &failure) {
+		t.Fatalf("expected an authoring-process failure, got %v", err)
+	}
+	got, err := os.ReadFile(out)
+	if err != nil || !bytes.Equal(got, original) {
+		t.Fatalf("failed build changed the image: %q %v", got, err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 1 || entries[0].Name() != "seed.iso" {
+		t.Fatalf("failed build left temporary output: %v %v", entries, err)
 	}
 }
 
