@@ -1,0 +1,63 @@
+name: Utils
+
+on:
+  push:
+    branches: [ main, master ]
+    paths: [ 'utils/**', '.github/workflows/utils.yml' ]
+  pull_request:
+    branches: [ main, master ]
+    paths: [ 'utils/**', '.github/workflows/utils.yml' ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        go-version: ["1.26", "1.27"]
+
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+    - name: Set up Go ${{ matrix.go-version }}
+      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+      with:
+        go-version: ${{ matrix.go-version }}
+
+    - name: Install xorriso
+      run: sudo apt-get update && sudo apt-get install -y xorriso
+
+    - name: Verify dependencies
+      working-directory: utils
+      run: go mod verify
+
+    - name: Run go vet
+      working-directory: utils
+      run: go vet ./...
+
+    - name: Run tests
+      working-directory: utils
+      run: go test -race ./...
+
+    - name: Check go formatting
+      working-directory: utils
+      run: |
+        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+          echo "The following files are not formatted:"
+          gofmt -s -l .
+          exit 1
+        fi
+
+  windows-iso-paths:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+    - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+      with:
+        go-version: "1.26"
+    - name: Test ISO staging paths
+      working-directory: utils
+      run: go test -timeout 60s ./iso -run TestStage
