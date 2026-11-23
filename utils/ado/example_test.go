@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/microsoft/storm/facilities/ado"
+	"github.com/microsoft/storm/utils/ado"
 )
 
 func ExampleMarshalMatrix() {

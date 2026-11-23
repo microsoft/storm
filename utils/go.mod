@@ -1,4 +1,4 @@
-module github.com/microsoft/storm/facilities
+module github.com/microsoft/storm/utils
 
 go 1.26.0
 

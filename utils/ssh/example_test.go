@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	remotessh "github.com/microsoft/storm/facilities/ssh"
+	remotessh "github.com/microsoft/storm/utils/ssh"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 )

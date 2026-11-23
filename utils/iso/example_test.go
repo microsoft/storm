@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/microsoft/storm/facilities/iso"
+	"github.com/microsoft/storm/utils/iso"
 )
 
 func ExampleBuild() {

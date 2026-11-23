@@ -53,6 +53,7 @@ See the `helloworld` suite for a simple example of how to use Storm.
 - `pkg/storm`: Contains the public storm library.
 - `internal`: Contains logic internal to the storm library.
 - `samples`: Contains example test suites.
+- `utils`: Optional Go module with SSH, data ISO and Azure DevOps helpers.
 
 ## Contributing
 
